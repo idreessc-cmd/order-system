@@ -1,5 +1,5 @@
 // Google Apps Script for Tawjihi Exam Order System (Netlify & CORS Safe)
-// Version 3.1.0 - Adds Text formatting for phone numbers to prevent losing leading zeros
+// Version 3.2.0 - Adds Dynamic Pricing Calculations & New Columns for Sheets
 
 function doPost(e) {
   try {
@@ -57,7 +57,9 @@ function submitOrder(data) {
         "المحافظة", "المنطقة / العنوان التفصيلي", "رقم موبايل للتواصل", 
         "رقم واتساب للتواصل", "رقم هاتف آخر", "المواد المطلوبة", 
         "مواد أخرى", "سعر بكج المادة", "تأكيد سعر التوصيل", 
-        "ملاحظات أخرى", "الحالة", "آخر تعديل", "عدد مرات التعديل"
+        "ملاحظات أخرى", 
+        "تفصيل الأسعار", "مجموع المواد", "سعر التوصيل", "الإجمالي الكلي", // أعمدة جديدة
+        "الحالة", "آخر تعديل", "عدد مرات التعديل"
       ];
       sheet.appendRow(headers);
     }
@@ -91,6 +93,14 @@ function submitOrder(data) {
     var timestamp = new Date();
     var subjectsStr = Array.isArray(data.subjects) ? data.subjects.join(", ") : "";
     
+    // Calculate prices on server side
+    var prices = calculateOrderTotal(
+      toText(data.generation), 
+      data.subjects || [], 
+      toText(data.otherSubject), 
+      toText(data.packagePrice)
+    );
+    
     var rowData = [
       timestamp,                            // التاريخ والوقت
       orderId,                              // رقم الطلب
@@ -98,14 +108,18 @@ function submitOrder(data) {
       toText(data.generation),              // الصف / الجيل
       toText(data.governorate),             // المحافظة
       toText(data.address),                 // المنطقة / العنوان التفصيلي
-      phoneAsText(data.mobilePhone),        // رقم موبايل للتواصل (صيغة نصية لحفظ الصفر)
-      phoneAsText(data.whatsappPhone),      // رقم واتساب للتواصل (صيغة نصية لحفظ الصفر)
-      phoneAsText(data.otherPhone),         // رقم هاتف آخر (صيغة نصية لحفظ الصفر)
+      phoneAsText(data.mobilePhone),        // رقم موبايل للتواصل
+      phoneAsText(data.whatsappPhone),      // رقم واتساب للتواصل
+      phoneAsText(data.otherPhone),         // رقم هاتف آخر
       subjectsStr,                          // المواد المطلوبة
       toText(data.otherSubject),            // مواد أخرى
       toText(data.packagePrice),            // سعر بكج المادة
       toText(data.deliveryConfirm),         // تأكيد سعر التوصيل
       toText(data.notes),                   // ملاحظات أخرى
+      prices.priceDetails,                  // تفصيل الأسعار
+      prices.subtotal,                      // مجموع المواد
+      prices.deliveryFee,                   // سعر التوصيل
+      prices.total,                         // الإجمالي الكلي
       "جديد",                               // الحالة
       "",                                   // آخر تعديل
       0                                     // عدد مرات التعديل
@@ -115,7 +129,8 @@ function submitOrder(data) {
     
     return {
       success: true,
-      orderNumber: orderId
+      orderNumber: orderId,
+      total: prices.total
     };
     
   } catch (error) {
@@ -145,7 +160,7 @@ function findOrder(data) {
     var phoneInput = normalizePhone(data.phone);
     
     // Fetch all records
-    var range = sheet.getRange(2, 1, lastRow - 1, 17);
+    var range = sheet.getRange(2, 1, lastRow - 1, 21); // 21 columns in v3.2.0
     var values = range.getValues();
     
     for (var i = 0; i < values.length; i++) {
@@ -153,14 +168,12 @@ function findOrder(data) {
       var rowOrderId = row[1].toString().trim().toUpperCase();
       
       if (rowOrderId === orderNumber) {
-        // Normalize all phone numbers in the row
         var rowPhone = normalizePhone(row[6]);
         var rowWhatsapp = normalizePhone(row[7]);
         var rowAltPhone = normalizePhone(row[8]);
         
-        // Match phone input against any of the three columns
         if (phoneInput === rowPhone || phoneInput === rowWhatsapp || phoneInput === rowAltPhone) {
-          // Found matching order - return all fields as explicit strings
+          // Found matching order
           return {
             success: true,
             order: {
@@ -218,7 +231,7 @@ function updateOrder(data) {
     var orderNumber = data.orderNumber.toString().trim().toUpperCase();
     var phoneInput = normalizePhone(data.phone);
     
-    var range = sheet.getRange(2, 1, lastRow - 1, 17);
+    var range = sheet.getRange(2, 1, lastRow - 1, 21); // 21 columns
     var values = range.getValues();
     var rowIndex = -1;
     var currentEditCount = 0;
@@ -235,7 +248,7 @@ function updateOrder(data) {
         
         if (phoneInput === rowPhone || phoneInput === rowWhatsapp || phoneInput === rowAltPhone) {
           rowIndex = i + 2; 
-          currentEditCount = parseInt(row[16], 10) || 0;
+          currentEditCount = parseInt(row[20], 10) || 0; // Column 21 is edit count (index 20)
           break;
         }
       }
@@ -254,27 +267,43 @@ function updateOrder(data) {
     var timestamp = new Date();
     var subjectsStr = Array.isArray(data.subjects) ? data.subjects.join(", ") : "";
     
-    // Update specific cells in that row
+    // Calculate new prices on server side
+    var prices = calculateOrderTotal(
+      toText(data.generation), 
+      data.subjects || [], 
+      toText(data.otherSubject), 
+      toText(data.packagePrice)
+    );
+    
+    // Update cells in the row
     sheet.getRange(rowIndex, 3).setValue(toText(data.fullName));
     sheet.getRange(rowIndex, 4).setValue(toText(data.generation));
     sheet.getRange(rowIndex, 5).setValue(toText(data.governorate));
     sheet.getRange(rowIndex, 6).setValue(toText(data.address));
-    sheet.getRange(rowIndex, 7).setValue(phoneAsText(data.mobilePhone)); // صيغة نصية لحفظ الصفر
-    sheet.getRange(rowIndex, 8).setValue(phoneAsText(data.whatsappPhone)); // صيغة نصية لحفظ الصفر
-    sheet.getRange(rowIndex, 9).setValue(phoneAsText(data.otherPhone)); // صيغة نصية لحفظ الصفر
+    sheet.getRange(rowIndex, 7).setValue(phoneAsText(data.mobilePhone));
+    sheet.getRange(rowIndex, 8).setValue(phoneAsText(data.whatsappPhone));
+    sheet.getRange(rowIndex, 9).setValue(phoneAsText(data.otherPhone));
     sheet.getRange(rowIndex, 10).setValue(subjectsStr);
     sheet.getRange(rowIndex, 11).setValue(toText(data.otherSubject));
     sheet.getRange(rowIndex, 12).setValue(toText(data.packagePrice));
     sheet.getRange(rowIndex, 13).setValue(toText(data.deliveryConfirm));
     sheet.getRange(rowIndex, 14).setValue(toText(data.notes));
     
-    sheet.getRange(rowIndex, 15).setValue("تم التعديل");
-    sheet.getRange(rowIndex, 16).setValue(timestamp);
-    sheet.getRange(rowIndex, 17).setValue(currentEditCount + 1);
+    // Columns 15, 16, 17, 18 for prices
+    sheet.getRange(rowIndex, 15).setValue(prices.priceDetails);
+    sheet.getRange(rowIndex, 16).setValue(prices.subtotal);
+    sheet.getRange(rowIndex, 17).setValue(prices.deliveryFee);
+    sheet.getRange(rowIndex, 18).setValue(prices.total);
+    
+    // Status, Edit Time, Edit Count
+    sheet.getRange(rowIndex, 19).setValue("تم التعديل");
+    sheet.getRange(rowIndex, 20).setValue(timestamp);
+    sheet.getRange(rowIndex, 21).setValue(currentEditCount + 1);
     
     return {
       success: true,
       orderNumber: orderNumber,
+      total: prices.total,
       message: "تم تعديل طلبكم بنجاح"
     };
     
@@ -286,21 +315,93 @@ function updateOrder(data) {
   }
 }
 
-// دالة تنسيق أعمدة الهواتف كأعمدة نصية لمنع فقدان الصفر البادئ
+// دالة حساب السعر الكلي من جهة السيرفر لضمان الأمان والثبات
+function calculateOrderTotal(generation, subjects, otherSubject, packagePriceVal) {
+  var priceDetails = [];
+  var subtotal = 0;
+  
+  if (Array.isArray(subjects)) {
+    for (var i = 0; i < subjects.length; i++) {
+      var subject = subjects[i];
+      var price = getSubjectPrice(generation, subject, packagePriceVal);
+      subtotal += price;
+      priceDetails.push(subject + " = " + price + " JD");
+    }
+  }
+  
+  if (otherSubject && otherSubject.trim()) {
+    var otherPrice = 0;
+    if (generation === "توجيهي 2009") {
+      otherPrice = getSubjectPrice(generation, "أخرى", packagePriceVal);
+    } else if (generation === "بيتيك BTEC") {
+      otherPrice = 3.5;
+    } else { // توجيهي 2008
+      otherPrice = 4.0; // السعر الافتراضي للمادة الإضافية الأخرى
+    }
+    subtotal += otherPrice;
+    priceDetails.push("مواد أخرى (" + otherSubject.trim() + ") = " + otherPrice + " JD");
+  }
+  
+  var deliveryFee = 1.0; // التوصيل دينار واحد
+  var total = subtotal + deliveryFee;
+  
+  return {
+    priceDetails: priceDetails.join(" | "),
+    subtotal: subtotal,
+    deliveryFee: deliveryFee,
+    total: total
+  };
+}
+
+// دالة استخراج سعر المادة حسب الجيل واسم المادة
+function getSubjectPrice(generation, subjectName, packagePriceVal) {
+  var name = subjectName.toLowerCase();
+  
+  if (generation === "بيتيك BTEC") {
+    return 3.5;
+  }
+  
+  if (generation === "توجيهي 2008") {
+    if (name.indexOf("رياضيات") !== -1) return 4.5;
+    if (name.indexOf("ثقافة مالية") !== -1) return 4.0;
+    if (name.indexOf("كيمياء") !== -1) return 4.5;
+    if (name.indexOf("علوم حياتية") !== -1) return 4.5;
+    if (name.indexOf("علوم الأرض") !== -1 || name.indexOf("علوم أرض") !== -1 || name.indexOf("علوم ارض") !== -1) return 3.5;
+    if (name.indexOf("فلسفة") !== -1) return 4.5;
+    if (name.indexOf("فيزياء") !== -1) return 4.0;
+    if (name.indexOf("تاريخ") !== -1) return 3.5;
+    if (name.indexOf("لغة عربية") !== -1 || name.indexOf("عربي") !== -1) return 4.0;
+    if (name.indexOf("إنجليزي") !== -1 || name.indexOf("إنجليزي") !== -1 || name.indexOf("انجليزي") !== -1) return 4.0;
+    // أي مادة أخرى (مثل التربية الإسلامية) في 2008
+    return 3.5;
+  }
+  
+  if (generation === "توجيهي 2009") {
+    // 2009 يعتمد على اختيار البكج أبيض وأسود أو ملون
+    if (packagePriceVal && packagePriceVal.indexOf("2.5") !== -1) {
+      return 2.5;
+    }
+    return 3.5;
+  }
+  
+  return 3.5; // قيمة افتراضية احتياطية
+}
+
+// دالة تنسيق أعمدة الهواتف كأعمدة نصية
 function formatPhoneColumnsAsText(sheet) {
   sheet.getRange("G:G").setNumberFormat("@");
   sheet.getRange("H:H").setNumberFormat("@");
   sheet.getRange("I:I").setNumberFormat("@");
 }
 
-// دالة للتأكد من حفظ الهاتف كنص وإجبار جوجل شيتس على عدم تحويله لرقم (بإضافة علامة الكوتيشن المفردة الصامتة)
+// دالة للتأكد من حفظ الهاتف كنص
 function phoneAsText(value) {
   if (value === null || value === undefined) return "";
-  var text = value.toString().trim().replace(/^'/, ""); // إزالة الكوتيشن إن وجدت لتفادي التكرار
+  var text = value.toString().trim().replace(/^'/, "");
   return text ? "'" + text : "";
 }
 
-// دالة تحويل أي قيمة لنص نظيف مع إزالة أي علامات كوتيشن مفردة صامتة مضافة
+// دالة تحويل أي قيمة لنص نظيف
 function toText(value) {
   if (value === null || value === undefined) return "";
   return String(value).replace(/^'/, "").trim();

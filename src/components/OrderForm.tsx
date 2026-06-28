@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Receipt } from 'lucide-react';
 
 interface OrderFormProps {
-  onSubmitSuccess: (orderId: string) => void;
+  onSubmitSuccess: (orderId: string, total: number) => void;
   onBack: () => void;
   initialData?: FormState;
   orderNumber?: string;
@@ -65,10 +65,84 @@ const SUBJECTS_LIST = [
   'امتحانات علم النفس والاجتماع'
 ];
 
-// دالة آمنة لتحويل القيمة إلى نص مع إزالة الفراغات لتجنب خطأ trim is not a function
 const safeText = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
+};
+
+// دالة تسعير المواد في الفرع الأمامي
+const getSubjectPrice = (generation: string, subjectName: string, packagePriceVal: string): number => {
+  const name = subjectName.toLowerCase();
+  
+  if (generation === 'بيتيك BTEC') {
+    return 3.5;
+  }
+  
+  if (generation === 'توجيهي 2008') {
+    if (name.includes('رياضيات')) return 4.5;
+    if (name.includes('ثقافة مالية')) return 4.0;
+    if (name.includes('كيمياء')) return 4.5;
+    if (name.includes('علوم حياتية')) return 4.5;
+    if (name.includes('علوم الأرض') || name.includes('علوم أرض') || name.includes('علوم ارض')) return 3.5;
+    if (name.includes('فلسفة')) return 4.5;
+    if (name.includes('فيزياء')) return 4.0;
+    if (name.includes('تاريخ')) return 3.5;
+    if (name.includes('لغة عربية') || name.includes('عربي')) return 4.0;
+    if (name.includes('إنجليزي') || name.includes('انجليزي')) return 4.0;
+    // التربية الإسلامية أو أي مادة أخرى
+    return 3.5;
+  }
+  
+  if (generation === 'توجيهي 2009') {
+    if (packagePriceVal && packagePriceVal.includes('2.5')) {
+      return 2.5;
+    }
+    return 3.5;
+  }
+  
+  return 3.5;
+};
+
+// دالة حساب مجاميع السعر
+export const calculateOrderTotal = (
+  generation: string,
+  subjects: string[],
+  otherSubject: string,
+  packagePriceVal: string
+) => {
+  const priceItems: { name: string; price: number }[] = [];
+  let subtotal = 0;
+  
+  if (generation) {
+    subjects.forEach(subject => {
+      const price = getSubjectPrice(generation, subject, packagePriceVal);
+      subtotal += price;
+      priceItems.push({ name: subject, price });
+    });
+    
+    if (otherSubject.trim()) {
+      let otherPrice = 0;
+      if (generation === 'توجيهي 2009') {
+        otherPrice = getSubjectPrice(generation, 'أخرى', packagePriceVal);
+      } else if (generation === 'بيتيك BTEC') {
+        otherPrice = 3.5;
+      } else {
+        otherPrice = 4.0;
+      }
+      subtotal += otherPrice;
+      priceItems.push({ name: `مواد أخرى (${otherSubject.trim()})`, price: otherPrice });
+    }
+  }
+  
+  const deliveryFee = subtotal > 0 ? 1.0 : 0;
+  const total = subtotal + deliveryFee;
+  
+  return {
+    priceItems,
+    subtotal,
+    deliveryFee,
+    total
+  };
 };
 
 export const OrderForm: React.FC<OrderFormProps> = ({ 
@@ -209,7 +283,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       newErrors.subjectsList = 'يرجى اختيار مادة واحدة على الأقل أو كتابة مواد أخرى في الحقل المخصص';
     }
 
-    if (!formData.packagePrice) {
+    // التحقق من سعر البكج فقط لجيل توجيهي 2009
+    if (formData.generation === 'توجيهي 2009' && !formData.packagePrice) {
       newErrors.packagePrice = 'هذا السؤال مطلوب إجباريًا';
     }
 
@@ -253,6 +328,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
+
+  // حساب أسعار المواد والملخص فورياً أثناء العرض (On-the-fly computation)
+  const priceSummary = calculateOrderTotal(
+    formData.generation,
+    formData.subjects,
+    formData.otherSubject,
+    formData.packagePrice
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,13 +381,13 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       const result = await response.json();
 
       if (result.success && result.orderNumber) {
-        onSubmitSuccess(result.orderNumber);
+        // تمرير رقم الطلب والسعر النهائي المرتجع من السيرفر (أو السعر المحسوب محلياً كاحتياط)
+        onSubmitSuccess(result.orderNumber, result.total || priceSummary.total);
       } else {
         throw new Error(result.message || 'فشل حفظ الطلب، يرجى المحاولة مرة أخرى.');
       }
     } catch (error: any) {
       console.error('Submission error:', error);
-      // تجنب إظهار أي رسالة خطأ برمجية للطالب وعرض رسالة عامة بسيطة ومفهومة
       setErrors(prev => ({
         ...prev,
         api: 'تعذر تسجيل الطلب، يرجى التحقق من اتصالك بالإنترنت ثم المحاولة مرة أخرى.'
@@ -576,39 +659,41 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         )}
       </div>
 
-      {/* 9. سعر بكج امتحانات المادة الواحدة */}
-      <div 
-        ref={cardRefs.packagePrice} 
-        className={`form-card ${errors.packagePrice ? 'error-state' : ''}`}
-      >
-        <span className="question-title required">سعر بكج امتحانات المادة الواحدة</span>
-        <div className="options-container">
-          {['(أبيض وأسود) 2.5 JD', '(ملون) 3.5 JD'].map(option => (
-            <div 
-              key={option} 
-              className={`option-row radio ${formData.packagePrice === option ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-              onClick={() => !isSubmitting && handleRadioSelect('packagePrice', option)}
-            >
-              <input 
-                type="radio" 
-                name="packagePrice" 
-                value={option} 
-                checked={formData.packagePrice === option} 
-                onChange={() => {}}
-                className="option-input"
-                disabled={isSubmitting}
-              />
-              <span className="option-label">{option}</span>
-            </div>
-          ))}
-        </div>
-        {errors.packagePrice && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.packagePrice}</span>
+      {/* 9. سعر بكج امتحانات المادة الواحدة - يظهر فقط في حالة توجيهي 2009 */}
+      {formData.generation === 'توجيهي 2009' && (
+        <div 
+          ref={cardRefs.packagePrice} 
+          className={`form-card ${errors.packagePrice ? 'error-state' : ''}`}
+        >
+          <span className="question-title required">سعر بكج امتحانات المادة الواحدة</span>
+          <div className="options-container">
+            {['(أبيض وأسود) 2.5 JD', '(ملون) 3.5 JD'].map(option => (
+              <div 
+                key={option} 
+                className={`option-row radio ${formData.packagePrice === option ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
+                onClick={() => !isSubmitting && handleRadioSelect('packagePrice', option)}
+              >
+                <input 
+                  type="radio" 
+                  name="packagePrice" 
+                  value={option} 
+                  checked={formData.packagePrice === option} 
+                  onChange={() => {}}
+                  className="option-input"
+                  disabled={isSubmitting}
+                />
+                <span className="option-label">{option}</span>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+          {errors.packagePrice && (
+            <div className="card-error-msg">
+              <AlertCircle size={14} />
+              <span>{errors.packagePrice}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 10. سعر التوصيل دينار واحد فقط 1JD */}
       <div 
@@ -654,6 +739,40 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           disabled={isSubmitting}
         />
       </div>
+
+      {/* بطاقة ملخص السعر التلقائي (Price Summary Card) */}
+      {priceSummary.subtotal > 0 && (
+        <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <Receipt size={20} style={{ color: 'var(--google-purple)' }} />
+            <span className="question-title" style={{ margin: 0 }}>ملخص تفاصيل السعر للفاتورة:</span>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.95rem' }}>
+            {priceSummary.priceItems.map((item, index) => (
+              <div key={index} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
+                <span style={{ color: 'var(--text-color)', fontWeight: 500 }}>{item.name}</span>
+                <span style={{ fontWeight: 700, color: 'var(--google-purple)' }}>{item.price.toFixed(2)} JD</span>
+              </div>
+            ))}
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>مجموع المواد:</span>
+              <span style={{ fontWeight: 700 }}>{priceSummary.subtotal.toFixed(2)} JD</span>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #ddd', paddingBottom: '8px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>سعر التوصيل:</span>
+              <span style={{ fontWeight: 700 }}>{priceSummary.deliveryFee.toFixed(2)} JD</span>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800, marginTop: '4px' }}>
+              <span style={{ color: 'var(--text-color)' }}>الإجمالي المطلوب:</span>
+              <span style={{ color: 'var(--google-purple)' }}>{priceSummary.total.toFixed(2)} JD</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* تنبيه قبل الإرسال */}
       <div className="warning-box">

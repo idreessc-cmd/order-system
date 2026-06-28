@@ -3,12 +3,14 @@ import { Check, Copy, MessageSquare, Home } from 'lucide-react';
 
 interface SuccessViewProps {
   orderId: string;
+  total: number; // إجمالي قيمة الطلب
   isEditMode?: boolean;
   onGoHome: () => void;
 }
 
 export const SuccessView: React.FC<SuccessViewProps> = ({ 
   orderId, 
+  total,
   isEditMode = false,
   onGoHome
 }) => {
@@ -26,9 +28,10 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
 
   const handleWhatsAppRedirect = () => {
     const adminPhoneNumber = '962782496144';
+    const formattedTotal = total.toFixed(2);
     const messageText = isEditMode 
-      ? `السلام عليكم، تم تعديل طلبي بنجاح، رقم الطلب هو ${orderId}`
-      : `السلام عليكم، تم تسجيل طلبي بنجاح، رقم الطلب هو ${orderId}`;
+      ? `السلام عليكم، تم تعديل طلبي بنجاح، رقم الطلب هو ${orderId}، والإجمالي ${formattedTotal} دينار.`
+      : `السلام عليكم، تم تسجيل طلبي بنجاح، رقم الطلب هو ${orderId}، والإجمالي ${formattedTotal} دينار.`;
       
     const encodedText = encodeURIComponent(messageText);
     const whatsappUrl = `https://wa.me/${adminPhoneNumber}?text=${encodedText}`;
@@ -50,10 +53,10 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
         {isEditMode ? 'تم تعديل طلبكم بنجاح ✅' : 'تم تسجيل طلبكم بنجاح ✅'}
       </p>
 
-      {/* Order ID Box */}
+      {/* Order ID & Price Box */}
       <div className="success-order-box">
         <span className="success-order-label">رقم الطلب الخاص بك</span>
-        <div className="success-order-id-row">
+        <div className="success-order-id-row" style={{ marginBottom: '8px' }}>
           <span className="success-order-id-value">{orderId}</span>
           <button 
             type="button" 
@@ -70,6 +73,11 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
               <Copy size={20} />
             )}
           </button>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '6px', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-color)' }}>
+          <span>الإجمالي:</span>
+          <span style={{ color: 'var(--google-purple)' }}>{total.toFixed(2)} JD</span>
         </div>
       </div>
 
