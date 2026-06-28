@@ -65,6 +65,29 @@ const SUBJECTS_LIST = [
   'امتحانات علم النفس والاجتماع'
 ];
 
+// المتغيرات الثابتة للتسعير حسب الجيل
+const OLD_PRICES = {
+  blackAndWhite: 2.5,
+  colored: 3.5
+};
+
+const SUBJECT_PRICES_2008 = {
+  "رياضيات": 4.5,
+  "ثقافة مالية": 4.0,
+  "كيمياء": 4.5,
+  "علوم حياتية": 4.5,
+  "علوم أرض": 3.5,
+  "فلسفة": 4.5,
+  "فيزياء": 4.0,
+  "تاريخ": 3.5,
+  "عربي": 4.0,
+  "إنجليزي": 4.0,
+  "default": 3.5 // للتربية الإسلامية أو أي مادة أخرى
+};
+
+const BTEC_PRICE = 3.5;
+const DELIVERY_FEE = 1.0;
+
 const safeText = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
@@ -74,33 +97,33 @@ const safeText = (value: unknown): string => {
 const getSubjectPrice = (generation: string, subjectName: string, packagePriceVal: string): number => {
   const name = subjectName.toLowerCase();
   
-  if (generation === 'بيتيك BTEC') {
-    return 3.5;
+  if (generation.includes('BTEC') || generation.includes('بيتيك')) {
+    return BTEC_PRICE;
   }
   
-  if (generation === 'توجيهي 2008') {
-    if (name.includes('رياضيات')) return 4.5;
-    if (name.includes('ثقافة مالية')) return 4.0;
-    if (name.includes('كيمياء')) return 4.5;
-    if (name.includes('علوم حياتية')) return 4.5;
-    if (name.includes('علوم الأرض') || name.includes('علوم أرض') || name.includes('علوم ارض')) return 3.5;
-    if (name.includes('فلسفة')) return 4.5;
-    if (name.includes('فيزياء')) return 4.0;
-    if (name.includes('تاريخ')) return 3.5;
-    if (name.includes('لغة عربية') || name.includes('عربي')) return 4.0;
-    if (name.includes('إنجليزي') || name.includes('انجليزي')) return 4.0;
-    // التربية الإسلامية أو أي مادة أخرى
-    return 3.5;
+  if (generation.includes('2008')) {
+    if (name.includes('رياضيات')) return SUBJECT_PRICES_2008["رياضيات"];
+    if (name.includes('ثقافة مالية')) return SUBJECT_PRICES_2008["ثقافة مالية"];
+    if (name.includes('كيمياء')) return SUBJECT_PRICES_2008["كيمياء"];
+    if (name.includes('علوم حياتية')) return SUBJECT_PRICES_2008["علوم حياتية"];
+    if (name.includes('علوم الأرض') || name.includes('علوم أرض') || name.includes('علوم ارض')) return SUBJECT_PRICES_2008["علوم أرض"];
+    if (name.includes('فلسفة')) return SUBJECT_PRICES_2008["فلسفة"];
+    if (name.includes('فيزياء')) return SUBJECT_PRICES_2008["فيزياء"];
+    if (name.includes('تاريخ')) return SUBJECT_PRICES_2008["تاريخ"];
+    if (name.includes('لغة عربية') || name.includes('عربي')) return SUBJECT_PRICES_2008["عربي"];
+    if (name.includes('إنجليزي') || name.includes('نجليزي')) return SUBJECT_PRICES_2008["إنجليزي"];
+    return SUBJECT_PRICES_2008["default"];
   }
   
-  if (generation === 'توجيهي 2009') {
+  if (generation.includes('2009')) {
+    // 2009 يعتمد على اختيار البكج أبيض وأسود أو ملون من الأسعار القديمة
     if (packagePriceVal && packagePriceVal.includes('2.5')) {
-      return 2.5;
+      return OLD_PRICES.blackAndWhite;
     }
-    return 3.5;
+    return OLD_PRICES.colored;
   }
   
-  return 3.5;
+  return OLD_PRICES.colored; // الاحتياطي الافتراضي
 };
 
 // دالة حساب مجاميع السعر
@@ -122,19 +145,19 @@ export const calculateOrderTotal = (
     
     if (otherSubject.trim()) {
       let otherPrice = 0;
-      if (generation === 'توجيهي 2009') {
+      if (generation.includes('2009')) {
         otherPrice = getSubjectPrice(generation, 'أخرى', packagePriceVal);
-      } else if (generation === 'بيتيك BTEC') {
-        otherPrice = 3.5;
-      } else {
-        otherPrice = 4.0;
+      } else if (generation.includes('BTEC') || generation.includes('بيتيك')) {
+        otherPrice = BTEC_PRICE;
+      } else { // 2008
+        otherPrice = 4.0; // السعر الافتراضي للمادة الأخرى في 2008
       }
       subtotal += otherPrice;
       priceItems.push({ name: `مواد أخرى (${otherSubject.trim()})`, price: otherPrice });
     }
   }
   
-  const deliveryFee = subtotal > 0 ? 1.0 : 0;
+  const deliveryFee = subtotal > 0 ? DELIVERY_FEE : 0;
   const total = subtotal + deliveryFee;
   
   return {
@@ -284,7 +307,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
 
     // التحقق من سعر البكج فقط لجيل توجيهي 2009
-    if (formData.generation === 'توجيهي 2009' && !formData.packagePrice) {
+    if (formData.generation.includes('2009') && !formData.packagePrice) {
       newErrors.packagePrice = 'هذا السؤال مطلوب إجباريًا';
     }
 
@@ -329,7 +352,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   };
 
-  // حساب أسعار المواد والملخص فورياً أثناء العرض (On-the-fly computation)
+  // حساب أسعار المواد والملخص فورياً أثناء العرض
   const priceSummary = calculateOrderTotal(
     formData.generation,
     formData.subjects,
@@ -351,7 +374,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       let response;
       
       if (isEditMode) {
-        // Edit mode - send to update-order function
         response = await fetch('/.netlify/functions/update-order', {
           method: 'POST',
           headers: {
@@ -364,7 +386,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           }),
         });
       } else {
-        // Create mode - send to submit-order function
         response = await fetch('/.netlify/functions/submit-order', {
           method: 'POST',
           headers: {
@@ -381,7 +402,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       const result = await response.json();
 
       if (result.success && result.orderNumber) {
-        // تمرير رقم الطلب والسعر النهائي المرتجع من السيرفر (أو السعر المحسوب محلياً كاحتياط)
         onSubmitSuccess(result.orderNumber, result.total || priceSummary.total);
       } else {
         throw new Error(result.message || 'فشل حفظ الطلب، يرجى المحاولة مرة أخرى.');
@@ -659,8 +679,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         )}
       </div>
 
-      {/* 9. سعر بكج امتحانات المادة الواحدة - يظهر فقط في حالة توجيهي 2009 */}
-      {formData.generation === 'توجيهي 2009' && (
+      {/* 9. سعر بكج امتحانات المادة الواحدة - يظهر ويطلب فقط في حالة جيل توجيهي 2009 */}
+      {formData.generation.includes('2009') && (
         <div 
           ref={cardRefs.packagePrice} 
           className={`form-card ${errors.packagePrice ? 'error-state' : ''}`}
@@ -740,7 +760,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         />
       </div>
 
-      {/* بطاقة ملخص السعر التلقائي (Price Summary Card) */}
+      {/* بطاقة ملخص السعر التلقائي */}
       {priceSummary.subtotal > 0 && (
         <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
