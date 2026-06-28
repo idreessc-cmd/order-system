@@ -65,6 +65,12 @@ const SUBJECTS_LIST = [
   'امتحانات علم النفس والاجتماع'
 ];
 
+// دالة آمنة لتحويل القيمة إلى نص مع إزالة الفراغات لتجنب خطأ trim is not a function
+const safeText = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
 export const OrderForm: React.FC<OrderFormProps> = ({ 
   onSubmitSuccess, 
   onBack,
@@ -91,22 +97,22 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'api' | 'subjectsList', string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initialize form data if in edit mode
+  // Initialize form data securely if in edit mode
   useEffect(() => {
     if (isEditMode && initialData) {
       setFormData({
-        fullName: initialData.fullName || '',
-        generation: initialData.generation || '',
-        governorate: initialData.governorate || '',
-        address: initialData.address || '',
-        mobilePhone: initialData.mobilePhone || '',
-        whatsappPhone: initialData.whatsappPhone || '',
-        otherPhone: initialData.otherPhone || '',
-        subjects: initialData.subjects || [],
-        otherSubject: initialData.otherSubject || '',
-        packagePrice: initialData.packagePrice || '',
-        deliveryConfirm: initialData.deliveryConfirm || '',
-        notes: initialData.notes || ''
+        fullName: safeText(initialData.fullName),
+        generation: safeText(initialData.generation),
+        governorate: safeText(initialData.governorate),
+        address: safeText(initialData.address),
+        mobilePhone: safeText(initialData.mobilePhone),
+        whatsappPhone: safeText(initialData.whatsappPhone),
+        otherPhone: safeText(initialData.otherPhone),
+        subjects: Array.isArray(initialData.subjects) ? initialData.subjects : [],
+        otherSubject: safeText(initialData.otherSubject),
+        packagePrice: safeText(initialData.packagePrice),
+        deliveryConfirm: safeText(initialData.deliveryConfirm),
+        notes: safeText(initialData.notes)
       });
     }
   }, [isEditMode, initialData]);
@@ -160,7 +166,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormState | 'subjectsList', string>> = {};
 
-    if (!formData.fullName.trim()) {
+    if (!safeText(formData.fullName)) {
       newErrors.fullName = 'هذا السؤال مطلوب إجباريًا';
     }
 
@@ -172,30 +178,34 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       newErrors.governorate = 'هذا السؤال مطلوب إجباريًا';
     }
 
-    if (!formData.address.trim()) {
+    if (!safeText(formData.address)) {
       newErrors.address = 'هذا السؤال مطلوب إجباريًا';
     }
 
     // Phone number validation: 10 digits starting with 077, 078, 079
     const phoneRegex = /^07[789]\d{7}$/;
-    if (!formData.mobilePhone.trim()) {
+    const cleanedMobile = safeText(formData.mobilePhone);
+    const cleanedWhatsapp = safeText(formData.whatsappPhone);
+    const cleanedOther = safeText(formData.otherPhone);
+
+    if (!cleanedMobile) {
       newErrors.mobilePhone = 'هذا السؤال مطلوب إجباريًا';
-    } else if (!phoneRegex.test(formData.mobilePhone.trim())) {
+    } else if (!phoneRegex.test(cleanedMobile)) {
       newErrors.mobilePhone = 'يرجى إدخال رقم هاتف أردني صحيح يتكون من 10 أرقام (مثال: 0791234567)';
     }
 
-    if (!formData.whatsappPhone.trim()) {
+    if (!cleanedWhatsapp) {
       newErrors.whatsappPhone = 'هذا السؤال مطلوب إجباريًا';
-    } else if (!phoneRegex.test(formData.whatsappPhone.trim())) {
+    } else if (!phoneRegex.test(cleanedWhatsapp)) {
       newErrors.whatsappPhone = 'يرجى إدخال رقم واتساب صحيح يتكون من 10 أرقام (مثال: 0791234567)';
     }
 
-    if (!formData.otherPhone.trim()) {
+    if (!cleanedOther) {
       newErrors.otherPhone = 'هذا السؤال مطلوب إجباريًا';
     }
 
     // Must select at least one subject or fill other subjects
-    if (formData.subjects.length === 0 && !formData.otherSubject.trim()) {
+    if (formData.subjects.length === 0 && !safeText(formData.otherSubject)) {
       newErrors.subjectsList = 'يرجى اختيار مادة واحدة على الأقل أو كتابة مواد أخرى في الحقل المخصص';
     }
 
@@ -294,9 +304,10 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       }
     } catch (error: any) {
       console.error('Submission error:', error);
+      // تجنب إظهار أي رسالة خطأ برمجية للطالب وعرض رسالة عامة بسيطة ومفهومة
       setErrors(prev => ({
         ...prev,
-        api: error.message || 'حدث خطأ أثناء إرسال الطلب. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.'
+        api: 'تعذر تسجيل الطلب، يرجى التحقق من اتصالك بالإنترنت ثم المحاولة مرة أخرى.'
       }));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
@@ -439,7 +450,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         className={`form-card ${errors.mobilePhone ? 'error-state' : ''}`}
       >
         <label htmlFor="mobilePhone" className="question-title required">رقم موبايل للتواصل</label>
-        <p className="question-description">يفضل أن يكون فعال ونشص</p>
+        <p className="question-description">يفضل أن يكون فعال ونشط</p>
         <input
           id="mobilePhone"
           type="tel"

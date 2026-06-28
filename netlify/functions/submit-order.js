@@ -1,17 +1,17 @@
 function normalizeOrderPayload(payload) {
   return {
-    fullName: payload.fullName || payload.name || payload.studentName || "",
-    generation: payload.generation || payload.grade || payload.studentGeneration || "",
-    governorate: payload.governorate || payload.city || "",
-    address: payload.address || payload.area || payload.location || "",
-    mobilePhone: payload.mobilePhone || payload.phone || payload.contactPhone || "",
-    whatsappPhone: payload.whatsappPhone || payload.whatsapp || payload.whatsappNumber || "",
-    otherPhone: payload.otherPhone || payload.altPhone || payload.extraPhone || "",
+    fullName: String(payload.fullName || payload.name || payload.studentName || "").trim(),
+    generation: String(payload.generation || payload.grade || payload.studentGeneration || "").trim(),
+    governorate: String(payload.governorate || payload.city || "").trim(),
+    address: String(payload.address || payload.area || payload.location || "").trim(),
+    mobilePhone: String(payload.mobilePhone || payload.phone || payload.contactPhone || "").trim(),
+    whatsappPhone: String(payload.whatsappPhone || payload.whatsapp || payload.whatsappNumber || "").trim(),
+    otherPhone: String(payload.otherPhone || payload.altPhone || payload.extraPhone || "").trim(),
     subjects: payload.subjects || payload.selectedSubjects || [],
-    otherSubject: payload.otherSubject || payload.customSubject || payload.otherSubjects || "",
-    packagePrice: payload.packagePrice || payload.packageType || payload.priceOption || "",
-    deliveryConfirm: payload.deliveryConfirm || payload.delivery || "تم ✅",
-    notes: payload.notes || payload.comments || ""
+    otherSubject: String(payload.otherSubject || payload.customSubject || payload.otherSubjects || "").trim(),
+    packagePrice: String(payload.packagePrice || payload.packageType || payload.priceOption || "").trim(),
+    deliveryConfirm: String(payload.deliveryConfirm || payload.delivery || "تم ✅").trim(),
+    notes: String(payload.notes || payload.comments || "").trim()
   };
 }
 

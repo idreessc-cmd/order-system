@@ -1,5 +1,5 @@
 // Google Apps Script for Tawjihi Exam Order System (Netlify & CORS Safe)
-// Version 3.0.0 - Supports submitOrder, findOrder, updateOrder
+// Version 3.1.0 - Adds Text formatting for phone numbers to prevent losing leading zeros
 
 function doPost(e) {
   try {
@@ -19,7 +19,7 @@ function doPost(e) {
       response = { success: false, message: "إجراء غير معروف (Unknown action)" };
     }
     
-    // Return JSON response with CORS headers (for safety)
+    // Return JSON response with CORS headers
     return ContentService.createTextOutput(JSON.stringify(response))
       .setMimeType(ContentService.MimeType.JSON)
       .setHeader("Access-Control-Allow-Origin", "*");
@@ -62,6 +62,9 @@ function submitOrder(data) {
       sheet.appendRow(headers);
     }
     
+    // Ensure phone columns are formatted as text to preserve leading zeros
+    formatPhoneColumnsAsText(sheet);
+    
     // Generate sequential Order ID using PropertiesService
     var props = PropertiesService.getScriptProperties();
     var lastNumStr = props.getProperty("LAST_ORDER_NUMBER");
@@ -91,18 +94,18 @@ function submitOrder(data) {
     var rowData = [
       timestamp,                            // التاريخ والوقت
       orderId,                              // رقم الطلب
-      data.fullName,                        // الاسم الكامل
-      data.grade,                           // الصف / الجيل
-      data.governorate,                     // المحافظة
-      data.address,                         // المنطقة / العنوان التفصيلي
-      data.phone,                           // رقم موبايل للتواصل
-      data.whatsapp,                        // رقم واتساب للتواصل
-      data.altPhone,                        // رقم هاتف آخر
+      toText(data.fullName),                // الاسم الكامل
+      toText(data.generation),              // الصف / الجيل
+      toText(data.governorate),             // المحافظة
+      toText(data.address),                 // المنطقة / العنوان التفصيلي
+      phoneAsText(data.mobilePhone),        // رقم موبايل للتواصل (صيغة نصية لحفظ الصفر)
+      phoneAsText(data.whatsappPhone),      // رقم واتساب للتواصل (صيغة نصية لحفظ الصفر)
+      phoneAsText(data.otherPhone),         // رقم هاتف آخر (صيغة نصية لحفظ الصفر)
       subjectsStr,                          // المواد المطلوبة
-      data.otherSubjects || "",             // مواد أخرى
-      data.packagePrice,                    // سعر بكج المادة
-      data.deliveryConfirm,                 // تأكيد سعر التوصيل
-      data.notes || "",                     // ملاحظات أخرى
+      toText(data.otherSubject),            // مواد أخرى
+      toText(data.packagePrice),            // سعر بكج المادة
+      toText(data.deliveryConfirm),         // تأكيد سعر التوصيل
+      toText(data.notes),                   // ملاحظات أخرى
       "جديد",                               // الحالة
       "",                                   // آخر تعديل
       0                                     // عدد مرات التعديل
@@ -157,22 +160,22 @@ function findOrder(data) {
         
         // Match phone input against any of the three columns
         if (phoneInput === rowPhone || phoneInput === rowWhatsapp || phoneInput === rowAltPhone) {
-          // Found matching order
+          // Found matching order - return all fields as explicit strings
           return {
             success: true,
             order: {
-              fullName: row[2],
-              grade: row[3],
-              governorate: row[4],
-              address: row[5],
-              phone: row[6],
-              whatsapp: row[7],
-              altPhone: row[8],
-              subjects: row[9] ? row[9].split(", ") : [],
-              otherSubjects: row[10] || "",
-              packagePrice: row[11],
-              deliveryConfirm: row[12],
-              notes: row[13] || ""
+              fullName: toText(row[2]),
+              generation: toText(row[3]),
+              governorate: toText(row[4]),
+              address: toText(row[5]),
+              mobilePhone: toText(row[6]),
+              whatsappPhone: toText(row[7]),
+              otherPhone: toText(row[8]),
+              subjects: row[9] ? toText(row[9]).split(", ") : [],
+              otherSubject: toText(row[10]),
+              packagePrice: toText(row[11]),
+              deliveryConfirm: toText(row[12]),
+              notes: toText(row[13])
             }
           };
         }
@@ -220,7 +223,7 @@ function updateOrder(data) {
     var rowIndex = -1;
     var currentEditCount = 0;
     
-    // Find the row index (1-based for Sheet, loop is 0-based)
+    // Find the row index
     for (var i = 0; i < values.length; i++) {
       var row = values[i];
       var rowOrderId = row[1].toString().trim().toUpperCase();
@@ -231,7 +234,7 @@ function updateOrder(data) {
         var rowAltPhone = normalizePhone(row[8]);
         
         if (phoneInput === rowPhone || phoneInput === rowWhatsapp || phoneInput === rowAltPhone) {
-          rowIndex = i + 2; // +2 because array is 0-indexed and rows start at 2
+          rowIndex = i + 2; 
           currentEditCount = parseInt(row[16], 10) || 0;
           break;
         }
@@ -245,41 +248,28 @@ function updateOrder(data) {
       };
     }
     
+    // Ensure phone columns are formatted as text
+    formatPhoneColumnsAsText(sheet);
+    
     var timestamp = new Date();
     var subjectsStr = Array.isArray(data.subjects) ? data.subjects.join(", ") : "";
     
     // Update specific cells in that row
-    // Columns to update:
-    // Col 3: الاسم الكامل
-    sheet.getRange(rowIndex, 3).setValue(data.fullName);
-    // Col 4: الصف / الجيل
-    sheet.getRange(rowIndex, 4).setValue(data.grade);
-    // Col 5: المحافظة
-    sheet.getRange(rowIndex, 5).setValue(data.governorate);
-    // Col 6: المنطقة / العنوان التفصيلي
-    sheet.getRange(rowIndex, 6).setValue(data.address);
-    // Col 7: رقم موبايل للتواصل
-    sheet.getRange(rowIndex, 7).setValue(data.phone);
-    // Col 8: رقم واتساب للتواصل
-    sheet.getRange(rowIndex, 8).setValue(data.whatsapp);
-    // Col 9: رقم هاتف آخر
-    sheet.getRange(rowIndex, 9).setValue(data.altPhone);
-    // Col 10: المواد المطلوبة
+    sheet.getRange(rowIndex, 3).setValue(toText(data.fullName));
+    sheet.getRange(rowIndex, 4).setValue(toText(data.generation));
+    sheet.getRange(rowIndex, 5).setValue(toText(data.governorate));
+    sheet.getRange(rowIndex, 6).setValue(toText(data.address));
+    sheet.getRange(rowIndex, 7).setValue(phoneAsText(data.mobilePhone)); // صيغة نصية لحفظ الصفر
+    sheet.getRange(rowIndex, 8).setValue(phoneAsText(data.whatsappPhone)); // صيغة نصية لحفظ الصفر
+    sheet.getRange(rowIndex, 9).setValue(phoneAsText(data.otherPhone)); // صيغة نصية لحفظ الصفر
     sheet.getRange(rowIndex, 10).setValue(subjectsStr);
-    // Col 11: مواد أخرى
-    sheet.getRange(rowIndex, 11).setValue(data.otherSubjects || "");
-    // Col 12: سعر بكج المادة
-    sheet.getRange(rowIndex, 12).setValue(data.packagePrice);
-    // Col 13: تأكيد سعر التوصيل
-    sheet.getRange(rowIndex, 13).setValue(data.deliveryConfirm);
-    // Col 14: ملاحظات أخرى
-    sheet.getRange(rowIndex, 14).setValue(data.notes || "");
+    sheet.getRange(rowIndex, 11).setValue(toText(data.otherSubject));
+    sheet.getRange(rowIndex, 12).setValue(toText(data.packagePrice));
+    sheet.getRange(rowIndex, 13).setValue(toText(data.deliveryConfirm));
+    sheet.getRange(rowIndex, 14).setValue(toText(data.notes));
     
-    // Col 15: الحالة -> تم التعديل
     sheet.getRange(rowIndex, 15).setValue("تم التعديل");
-    // Col 16: آخر تعديل -> التاريخ والوقت الحالي
     sheet.getRange(rowIndex, 16).setValue(timestamp);
-    // Col 17: عدد مرات التعديل -> increment
     sheet.getRange(rowIndex, 17).setValue(currentEditCount + 1);
     
     return {
@@ -296,8 +286,27 @@ function updateOrder(data) {
   }
 }
 
-// دالة توحيد أرقام الهاتف (Normalize Phone Number)
-// تحذف أي رموز غير أرقام، وتزيل البادئات مثل +962 أو 00962 أو الصفر الأول لترجع 9 خانات
+// دالة تنسيق أعمدة الهواتف كأعمدة نصية لمنع فقدان الصفر البادئ
+function formatPhoneColumnsAsText(sheet) {
+  sheet.getRange("G:G").setNumberFormat("@");
+  sheet.getRange("H:H").setNumberFormat("@");
+  sheet.getRange("I:I").setNumberFormat("@");
+}
+
+// دالة للتأكد من حفظ الهاتف كنص وإجبار جوجل شيتس على عدم تحويله لرقم (بإضافة علامة الكوتيشن المفردة الصامتة)
+function phoneAsText(value) {
+  if (value === null || value === undefined) return "";
+  var text = value.toString().trim().replace(/^'/, ""); // إزالة الكوتيشن إن وجدت لتفادي التكرار
+  return text ? "'" + text : "";
+}
+
+// دالة تحويل أي قيمة لنص نظيف مع إزالة أي علامات كوتيشن مفردة صامتة مضافة
+function toText(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).replace(/^'/, "").trim();
+}
+
+// دالة توحيد أرقام الهاتف للبحث والمطابقة
 function normalizePhone(phone) {
   if (!phone) return "";
   var digits = phone.toString().replace(/\D/g, '');
