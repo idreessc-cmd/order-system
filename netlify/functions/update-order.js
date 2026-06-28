@@ -53,13 +53,14 @@ export const handler = async (event, context) => {
     try {
       result = JSON.parse(rawText);
     } catch (parseError) {
+      console.error("Google Apps Script raw response:", rawText.slice(0, 3000));
       return {
         statusCode: 502,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           success: false,
           message: "رد Google Apps Script ليس JSON. تحقق من رابط Web App والصلاحيات والنشر.",
-          debug: rawText.slice(0, 500),
+          debug: rawText.slice(0, 3000),
         }),
       };
     }
