@@ -28,10 +28,11 @@ export interface FormState {
 interface Subject {
   id: string;
   name: string;
-  price: number | null;
+  price: string;
   description: string;
   category: string;
   status: string; // active | disabled
+  sortOrder: number;
 }
 
 const GOVERNORATES = [
@@ -54,6 +55,38 @@ const safeText = (value: unknown): string => {
   return String(value).trim();
 };
 
+const formatPrice = (price: unknown): string => {
+  if (price === null || price === undefined) return "";
+
+  const cleaned = String(price)
+    .replace("JD", "")
+    .replace("دينار", "")
+    .trim();
+
+  if (!cleaned) return "";
+
+  const numericPrice = Number(cleaned);
+
+  if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+    return "";
+  }
+
+  return Number.isInteger(numericPrice)
+    ? `${numericPrice} JD`
+    : `${numericPrice.toFixed(2).replace(/\.?0+$/, "")} JD`;
+};
+
+const normalizeSubject = (subject: any): Subject => ({
+  id: String(subject.id || ""),
+  name: String(subject.name || ""),
+  price: String(subject.price || ""),
+  description: String(subject.description || ""),
+  category: String(subject.category || ""),
+  status: String(subject.status || "active"),
+  sortOrder: Number(subject.sortOrder || 0)
+});
+
+// دالة تحليل اسم المادة لاستخراج العنوان وموعد التوصيل بشكل منفصل
 const parseSubjectName = (subject: string) => {
   const match = subject.match(/(.+?)\s*\((.+?)\)/);
   if (match) {
@@ -106,7 +139,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         const result = await response.json();
         
         if (response.ok && result.success) {
-          setSubjectsList(result.subjects || []);
+          const normalized = (result.subjects || []).map(normalizeSubject);
+          setSubjectsList(normalized);
         } else {
           setSubjectsError(result.message || 'تعذر تحميل المواد، يرجى تحديث الصفحة أو المحاولة لاحقًا.');
         }
@@ -566,9 +600,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
               const { title, details } = parseSubjectName(subject.name);
               
               // عرض السعر الثابت المجلوب من السحابة أو الوصف
-              const priceText = subject.price !== null && subject.price !== undefined 
-                ? `${subject.price} JD` 
-                : 'يُحدد لاحقًا';
+              const priceLabel = formatPrice(subject.price);
 
               return (
                 <div 
@@ -609,15 +641,27 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     </div>
                   </div>
                   
-                  <span style={{ 
-                    fontWeight: 700, 
-                    color: isSelected ? 'var(--google-purple)' : 'var(--text-muted)',
-                    fontSize: '0.95rem',
-                    whiteSpace: 'nowrap',
-                    marginLeft: '8px'
-                  }}>
-                    {priceText}
-                  </span>
+                  {priceLabel ? (
+                    <span style={{ 
+                      fontWeight: 700, 
+                      color: isSelected ? 'var(--google-purple)' : 'var(--text-muted)',
+                      fontSize: '0.95rem',
+                      whiteSpace: 'nowrap',
+                      marginLeft: '8px'
+                    }}>
+                      {priceLabel}
+                    </span>
+                  ) : (
+                    <span style={{ 
+                      fontWeight: 500, 
+                      color: 'var(--text-muted)',
+                      fontSize: '0.85rem',
+                      whiteSpace: 'nowrap',
+                      marginLeft: '8px'
+                    }}>
+                      يُحدد لاحقًا
+                    </span>
+                  )}
                 </div>
               );
             })}

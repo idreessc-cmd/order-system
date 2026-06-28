@@ -4,16 +4,51 @@ import { LogIn, Plus, Edit2, EyeOff, CheckCircle, XCircle, ShieldAlert, LogOut, 
 interface Subject {
   id: string;
   name: string;
-  price: number | null;
+  price: string; // تم تغييرها إلى سلسلة نصية لمنع مشاكل التحويل غير المتوقعة
   description: string;
   category: string;
   status: string; // active | disabled | hidden
   sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface AdminPanelProps {
   onBackToApp: () => void;
 }
+
+const formatPrice = (price: unknown): string => {
+  if (price === null || price === undefined) return "";
+
+  const cleaned = String(price)
+    .replace("JD", "")
+    .replace("دينار", "")
+    .trim();
+
+  if (!cleaned) return "";
+
+  const numericPrice = Number(cleaned);
+
+  if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+    return "";
+  }
+
+  return Number.isInteger(numericPrice)
+    ? `${numericPrice} JD`
+    : `${numericPrice.toFixed(2).replace(/\.?0+$/, "")} JD`;
+};
+
+const normalizeSubject = (subject: any): Subject => ({
+  id: String(subject.id || ""),
+  name: String(subject.name || ""),
+  price: String(subject.price || ""),
+  description: String(subject.description || ""),
+  category: String(subject.category || ""),
+  status: String(subject.status || "active"),
+  sortOrder: Number(subject.sortOrder || 0),
+  createdAt: String(subject.createdAt || ""),
+  updatedAt: String(subject.updatedAt || "")
+});
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -30,7 +65,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
   const [currentSubject, setCurrentSubject] = useState<Partial<Subject>>({
     id: '',
     name: '',
-    price: null,
+    price: '',
     description: '',
     category: '2009',
     status: 'active',
@@ -104,7 +139,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        setSubjects(result.subjects || []);
+        const normalized = (result.subjects || []).map(normalizeSubject);
+        setSubjects(normalized);
       } else {
         if (response.status === 401) {
           handleLogout();
@@ -209,7 +245,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     setCurrentSubject({
       id: '',
       name: '',
-      price: null,
+      price: '',
       description: '',
       category: '2009',
       status: 'active',
@@ -346,7 +382,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
         </button>
       </div>
 
-      {/* Subjects list grid (Responsive Cards for mobile, clean rows for desktop) */}
+      {/* Subjects list grid */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {loading && subjects.length === 0 ? (
           <div className="form-card" style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
@@ -357,118 +393,122 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
             لا توجد مواد مضافة حالياً في شيت Subjects.
           </div>
         ) : (
-          subjects.map(subject => (
-            <div 
-              key={subject.id} 
-              className="form-card"
-              style={{
-                padding: '16px 20px',
-                borderLeft: subject.status === 'active' 
-                  ? '5px solid #1e8e3e' 
-                  : subject.status === 'disabled' 
-                    ? '5px solid #f9ab00' 
-                    : '5px solid #d93025',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                marginBottom: 0
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-color)' }}>
-                      {subject.name}
-                    </span>
-                    <span style={{
-                      fontSize: '0.75rem',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontWeight: 600,
-                      backgroundColor: subject.category === '2009' ? '#e8f0fe' : subject.category === '2008' ? '#f3e8fd' : '#fce8e6',
-                      color: subject.category === '2009' ? '#1a73e8' : subject.category === '2008' ? 'var(--google-purple)' : '#c5221f'
-                    }}>
-                      {subject.category}
+          subjects.map(subject => {
+            const priceLabel = formatPrice(subject.price);
+            
+            return (
+              <div 
+                key={subject.id} 
+                className="form-card"
+                style={{
+                  padding: '16px 20px',
+                  borderLeft: subject.status === 'active' 
+                    ? '5px solid #1e8e3e' 
+                    : subject.status === 'disabled' 
+                      ? '5px solid #f9ab00' 
+                      : '5px solid #d93025',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  marginBottom: 0
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-color)' }}>
+                        {subject.name}
+                      </span>
+                      <span style={{
+                        fontSize: '0.75rem',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontWeight: 600,
+                        backgroundColor: subject.category === '2009' ? '#e8f0fe' : subject.category === '2008' ? '#f3e8fd' : '#fce8e6',
+                        color: subject.category === '2009' ? '#1a73e8' : subject.category === '2008' ? 'var(--google-purple)' : '#c5221f'
+                      }}>
+                        {subject.category}
+                      </span>
+                    </div>
+                    {subject.description && (
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        {subject.description}
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div style={{ textAlign: 'left', fontWeight: 800, color: 'var(--google-purple)', fontSize: '1.1rem' }}>
+                    {priceLabel || 'يُحدد لاحقاً'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '12px', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>الترتيب: <strong>{subject.sortOrder}</strong></span>
+                    <span style={{ color: '#eee' }}>|</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      الحالة: 
+                      <strong style={{ 
+                        color: subject.status === 'active' ? '#1e8e3e' : subject.status === 'disabled' ? '#f9ab00' : '#d93025',
+                        marginRight: '4px'
+                      }}>
+                        {subject.status === 'active' ? 'نشطة' : subject.status === 'disabled' ? 'معطلة' : 'مخفية'}
+                      </strong>
                     </span>
                   </div>
-                  {subject.description && (
-                    <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      {subject.description}
-                    </p>
-                  )}
-                </div>
-                
-                <div style={{ textAlign: 'left', fontWeight: 800, color: 'var(--google-purple)', fontSize: '1.1rem' }}>
-                  {subject.price !== null && subject.price !== undefined ? `${subject.price.toFixed(2)} JD` : 'يُحدد لاحقاً'}
+
+                  {/* Actions row */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      type="button" 
+                      onClick={() => openEditModal(subject)}
+                      className="clear-form-link"
+                      style={{ padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    >
+                      <Edit2 size={14} />
+                      <span>تعديل</span>
+                    </button>
+
+                    {subject.status !== 'active' && (
+                      <button 
+                        type="button" 
+                        onClick={() => handleToggleStatus(subject, 'active')}
+                        className="clear-form-link"
+                        style={{ color: '#1e8e3e', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #1e8e3e', borderRadius: '4px' }}
+                      >
+                        <CheckCircle size={14} />
+                        <span>تفعيل</span>
+                      </button>
+                    )}
+
+                    {subject.status === 'active' && (
+                      <button 
+                        type="button" 
+                        onClick={() => handleToggleStatus(subject, 'disabled')}
+                        className="clear-form-link"
+                        style={{ color: '#f9ab00', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #f9ab00', borderRadius: '4px' }}
+                      >
+                        <XCircle size={14} />
+                        <span>تعطيل</span>
+                      </button>
+                    )}
+
+                    {subject.status !== 'hidden' && (
+                      <button 
+                        type="button" 
+                        onClick={() => handleDeleteSubject(subject.id)}
+                        className="clear-form-link"
+                        style={{ color: '#d93025', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #d93025', borderRadius: '4px' }}
+                      >
+                        <EyeOff size={14} />
+                        <span>إخفاء</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '12px', marginTop: '4px' }}>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>الترتيب: <strong>{subject.sortOrder}</strong></span>
-                  <span style={{ color: '#eee' }}>|</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    الحالة: 
-                    <strong style={{ 
-                      color: subject.status === 'active' ? '#1e8e3e' : subject.status === 'disabled' ? '#f9ab00' : '#d93025',
-                      marginRight: '4px'
-                    }}>
-                      {subject.status === 'active' ? 'نشطة' : subject.status === 'disabled' ? 'معطلة' : 'مخفية'}
-                    </strong>
-                  </span>
-                </div>
-
-                {/* Actions row */}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => openEditModal(subject)}
-                    className="clear-form-link"
-                    style={{ padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
-                  >
-                    <Edit2 size={14} />
-                    <span>تعديل</span>
-                  </button>
-
-                  {subject.status !== 'active' && (
-                    <button 
-                      type="button" 
-                      onClick={() => handleToggleStatus(subject, 'active')}
-                      className="clear-form-link"
-                      style={{ color: '#1e8e3e', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #1e8e3e', borderRadius: '4px' }}
-                    >
-                      <CheckCircle size={14} />
-                      <span>تفعيل</span>
-                    </button>
-                  )}
-
-                  {subject.status === 'active' && (
-                    <button 
-                      type="button" 
-                      onClick={() => handleToggleStatus(subject, 'disabled')}
-                      className="clear-form-link"
-                      style={{ color: '#f9ab00', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #f9ab00', borderRadius: '4px' }}
-                    >
-                      <XCircle size={14} />
-                      <span>تعطيل</span>
-                    </button>
-                  )}
-
-                  {subject.status !== 'hidden' && (
-                    <button 
-                      type="button" 
-                      onClick={() => handleDeleteSubject(subject.id)}
-                      className="clear-form-link"
-                      style={{ color: '#d93025', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #d93025', borderRadius: '4px' }}
-                    >
-                      <EyeOff size={14} />
-                      <span>إخفاء</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -494,7 +534,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
 
             <form onSubmit={handleSaveSubject} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               
-              {/* ID field (only visible / editable in add mode if desired, but we can auto-generate if empty) */}
               <div>
                 <label className="question-title" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>رمز المعرف الفريد (ID)</label>
                 <input
@@ -524,14 +563,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                 <div style={{ flex: 1 }}>
                   <label className="question-title" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>السعر (JD)</label>
                   <input
-                    type="number"
-                    step="0.1"
+                    type="text"
                     placeholder="مثال: 4.5"
-                    value={currentSubject.price === null || currentSubject.price === undefined ? '' : currentSubject.price}
-                    onChange={(e) => setCurrentSubject(prev => ({ 
-                      ...prev, 
-                      price: e.target.value === '' ? null : parseFloat(e.target.value) 
-                    }))}
+                    value={currentSubject.price || ''}
+                    onChange={(e) => setCurrentSubject(prev => ({ ...prev, price: e.target.value }))}
                     className="input-text-field"
                     disabled={saving}
                   />
