@@ -1,3 +1,20 @@
+function normalizeOrderPayload(payload) {
+  return {
+    fullName: payload.fullName || payload.name || payload.studentName || "",
+    generation: payload.generation || payload.grade || payload.studentGeneration || "",
+    governorate: payload.governorate || payload.city || "",
+    address: payload.address || payload.area || payload.location || "",
+    mobilePhone: payload.mobilePhone || payload.phone || payload.contactPhone || "",
+    whatsappPhone: payload.whatsappPhone || payload.whatsapp || payload.whatsappNumber || "",
+    otherPhone: payload.otherPhone || payload.altPhone || payload.extraPhone || "",
+    subjects: payload.subjects || payload.selectedSubjects || [],
+    otherSubject: payload.otherSubject || payload.customSubject || payload.otherSubjects || "",
+    packagePrice: payload.packagePrice || payload.packageType || payload.priceOption || "",
+    deliveryConfirm: payload.deliveryConfirm || payload.delivery || "تم ✅",
+    notes: payload.notes || payload.comments || ""
+  };
+}
+
 export const handler = async (event, context) => {
   // Only allow POST
   if (event.httpMethod !== "POST") {
@@ -24,7 +41,8 @@ export const handler = async (event, context) => {
   }
 
   try {
-    const { orderNumber, phone, data } = JSON.parse(event.body);
+    const payload = JSON.parse(event.body);
+    const { orderNumber, phone, data } = payload;
 
     if (!orderNumber || !phone || !data) {
       return {
@@ -34,6 +52,12 @@ export const handler = async (event, context) => {
       };
     }
     
+    console.log("update-order payload keys:", Object.keys(payload || {}));
+    
+    const normalizedData = normalizeOrderPayload(data);
+    
+    console.log("update-order data keys:", Object.keys(normalizedData || {}));
+
     const googleResponse = await fetch(googleScriptUrl, {
       method: "POST",
       headers: {
@@ -43,7 +67,7 @@ export const handler = async (event, context) => {
         action: "updateOrder",
         orderNumber,
         phone,
-        ...data
+        data: normalizedData
       }),
     });
 

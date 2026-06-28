@@ -12,14 +12,14 @@ interface OrderFormProps {
 
 export interface FormState {
   fullName: string;
-  grade: string;
+  generation: string; // توجيهي 2008, إلخ.
   governorate: string;
   address: string;
-  phone: string;
-  whatsapp: string;
-  altPhone: string;
+  mobilePhone: string;
+  whatsappPhone: string;
+  otherPhone: string;
   subjects: string[];
-  otherSubjects: string;
+  otherSubject: string;
   packagePrice: string;
   deliveryConfirm: string; // "تم ✅" or ""
   notes: string;
@@ -75,14 +75,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 }) => {
   const [formData, setFormData] = useState<FormState>({
     fullName: '',
-    grade: '',
+    generation: '',
     governorate: '',
     address: '',
-    phone: '',
-    whatsapp: '',
-    altPhone: '',
+    mobilePhone: '',
+    whatsappPhone: '',
+    otherPhone: '',
     subjects: [],
-    otherSubjects: '',
+    otherSubject: '',
     packagePrice: '',
     deliveryConfirm: '',
     notes: ''
@@ -94,19 +94,32 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   // Initialize form data if in edit mode
   useEffect(() => {
     if (isEditMode && initialData) {
-      setFormData(initialData);
+      setFormData({
+        fullName: initialData.fullName || '',
+        generation: initialData.generation || '',
+        governorate: initialData.governorate || '',
+        address: initialData.address || '',
+        mobilePhone: initialData.mobilePhone || '',
+        whatsappPhone: initialData.whatsappPhone || '',
+        otherPhone: initialData.otherPhone || '',
+        subjects: initialData.subjects || [],
+        otherSubject: initialData.otherSubject || '',
+        packagePrice: initialData.packagePrice || '',
+        deliveryConfirm: initialData.deliveryConfirm || '',
+        notes: initialData.notes || ''
+      });
     }
   }, [isEditMode, initialData]);
 
   // Refs for scrolling to the first error card
   const cardRefs = {
     fullName: useRef<HTMLDivElement>(null),
-    grade: useRef<HTMLDivElement>(null),
+    generation: useRef<HTMLDivElement>(null),
     governorate: useRef<HTMLDivElement>(null),
     address: useRef<HTMLDivElement>(null),
-    phone: useRef<HTMLDivElement>(null),
-    whatsapp: useRef<HTMLDivElement>(null),
-    altPhone: useRef<HTMLDivElement>(null),
+    mobilePhone: useRef<HTMLDivElement>(null),
+    whatsappPhone: useRef<HTMLDivElement>(null),
+    otherPhone: useRef<HTMLDivElement>(null),
     subjectsList: useRef<HTMLDivElement>(null),
     packagePrice: useRef<HTMLDivElement>(null),
     deliveryConfirm: useRef<HTMLDivElement>(null)
@@ -120,7 +133,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   };
 
-  const handleRadioSelect = (name: 'grade' | 'governorate' | 'packagePrice' | 'deliveryConfirm', value: string) => {
+  const handleRadioSelect = (name: 'generation' | 'governorate' | 'packagePrice' | 'deliveryConfirm', value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
@@ -151,8 +164,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       newErrors.fullName = 'هذا السؤال مطلوب إجباريًا';
     }
 
-    if (!formData.grade) {
-      newErrors.grade = 'هذا السؤال مطلوب إجباريًا';
+    if (!formData.generation) {
+      newErrors.generation = 'هذا السؤال مطلوب إجباريًا';
     }
 
     if (!formData.governorate) {
@@ -165,24 +178,24 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
     // Phone number validation: 10 digits starting with 077, 078, 079
     const phoneRegex = /^07[789]\d{7}$/;
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'هذا السؤال مطلوب إجباريًا';
-    } else if (!phoneRegex.test(formData.phone.trim())) {
-      newErrors.phone = 'يرجى إدخال رقم هاتف أردني صحيح يتكون من 10 أرقام (مثال: 0791234567)';
+    if (!formData.mobilePhone.trim()) {
+      newErrors.mobilePhone = 'هذا السؤال مطلوب إجباريًا';
+    } else if (!phoneRegex.test(formData.mobilePhone.trim())) {
+      newErrors.mobilePhone = 'يرجى إدخال رقم هاتف أردني صحيح يتكون من 10 أرقام (مثال: 0791234567)';
     }
 
-    if (!formData.whatsapp.trim()) {
-      newErrors.whatsapp = 'هذا السؤال مطلوب إجباريًا';
-    } else if (!phoneRegex.test(formData.whatsapp.trim())) {
-      newErrors.whatsapp = 'يرجى إدخال رقم واتساب صحيح يتكون من 10 أرقام (مثال: 0791234567)';
+    if (!formData.whatsappPhone.trim()) {
+      newErrors.whatsappPhone = 'هذا السؤال مطلوب إجباريًا';
+    } else if (!phoneRegex.test(formData.whatsappPhone.trim())) {
+      newErrors.whatsappPhone = 'يرجى إدخال رقم واتساب صحيح يتكون من 10 أرقام (مثال: 0791234567)';
     }
 
-    if (!formData.altPhone.trim()) {
-      newErrors.altPhone = 'هذا السؤال مطلوب إجباريًا';
+    if (!formData.otherPhone.trim()) {
+      newErrors.otherPhone = 'هذا السؤال مطلوب إجباريًا';
     }
 
     // Must select at least one subject or fill other subjects
-    if (formData.subjects.length === 0 && !formData.otherSubjects.trim()) {
+    if (formData.subjects.length === 0 && !formData.otherSubject.trim()) {
       newErrors.subjectsList = 'يرجى اختيار مادة واحدة على الأقل أو كتابة مواد أخرى في الحقل المخصص';
     }
 
@@ -214,14 +227,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     if (window.confirm('هل أنت متأكد من رغبتك في إخلاء النموذج وإعادة كتابته؟')) {
       setFormData({
         fullName: '',
-        grade: '',
+        generation: '',
         governorate: '',
         address: '',
-        phone: '',
-        whatsapp: '',
-        altPhone: '',
+        mobilePhone: '',
+        whatsappPhone: '',
+        otherPhone: '',
         subjects: [],
-        otherSubjects: '',
+        otherSubject: '',
         packagePrice: '',
         deliveryConfirm: '',
         notes: ''
@@ -335,22 +348,22 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
       {/* 2. الصف / الجيل */}
       <div 
-        ref={cardRefs.grade} 
-        className={`form-card ${errors.grade ? 'error-state' : ''}`}
+        ref={cardRefs.generation} 
+        className={`form-card ${errors.generation ? 'error-state' : ''}`}
       >
         <span className="question-title required">الصف / الجيل</span>
         <div className="options-container">
           {['توجيهي 2008', 'توجيهي 2009', 'بيتيك BTEC'].map(option => (
             <div 
               key={option} 
-              className={`option-row radio ${formData.grade === option ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-              onClick={() => !isSubmitting && handleRadioSelect('grade', option)}
+              className={`option-row radio ${formData.generation === option ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
+              onClick={() => !isSubmitting && handleRadioSelect('generation', option)}
             >
               <input 
                 type="radio" 
-                name="grade" 
+                name="generation" 
                 value={option} 
-                checked={formData.grade === option} 
+                checked={formData.generation === option} 
                 onChange={() => {}}
                 className="option-input"
                 disabled={isSubmitting}
@@ -359,10 +372,10 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             </div>
           ))}
         </div>
-        {errors.grade && (
+        {errors.generation && (
           <div className="card-error-msg">
             <AlertCircle size={14} />
-            <span>{errors.grade}</span>
+            <span>{errors.generation}</span>
           </div>
         )}
       </div>
@@ -422,16 +435,16 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
       {/* 5. رقم موبايل للتواصل */}
       <div 
-        ref={cardRefs.phone} 
-        className={`form-card ${errors.phone ? 'error-state' : ''}`}
+        ref={cardRefs.mobilePhone} 
+        className={`form-card ${errors.mobilePhone ? 'error-state' : ''}`}
       >
-        <label htmlFor="phone" className="question-title required">رقم موبايل للتواصل</label>
-        <p className="question-description">يفضل أن يكون فعال ونشط</p>
+        <label htmlFor="mobilePhone" className="question-title required">رقم موبايل للتواصل</label>
+        <p className="question-description">يفضل أن يكون فعال ونشص</p>
         <input
-          id="phone"
+          id="mobilePhone"
           type="tel"
-          name="phone"
-          value={formData.phone}
+          name="mobilePhone"
+          value={formData.mobilePhone}
           onChange={handleInputChange}
           placeholder="مثال: 0791234567"
           maxLength={10}
@@ -439,26 +452,26 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           style={{ direction: 'ltr', textAlign: 'right' }}
           disabled={isSubmitting}
         />
-        {errors.phone && (
+        {errors.mobilePhone && (
           <div className="card-error-msg">
             <AlertCircle size={14} />
-            <span>{errors.phone}</span>
+            <span>{errors.mobilePhone}</span>
           </div>
         )}
       </div>
 
       {/* 6. رقم واتساب للتواصل */}
       <div 
-        ref={cardRefs.whatsapp} 
-        className={`form-card ${errors.whatsapp ? 'error-state' : ''}`}
+        ref={cardRefs.whatsappPhone} 
+        className={`form-card ${errors.whatsappPhone ? 'error-state' : ''}`}
       >
-        <label htmlFor="whatsapp" className="question-title required">رقم واتساب للتواصل</label>
+        <label htmlFor="whatsappPhone" className="question-title required">رقم واتساب للتواصل</label>
         <p className="question-description">يفضل أن يكون فعال ومتصل بالإنترنت</p>
         <input
-          id="whatsapp"
+          id="whatsappPhone"
           type="tel"
-          name="whatsapp"
-          value={formData.whatsapp}
+          name="whatsappPhone"
+          value={formData.whatsappPhone}
           onChange={handleInputChange}
           placeholder="مثال: 0791234567"
           maxLength={10}
@@ -466,35 +479,35 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           style={{ direction: 'ltr', textAlign: 'right' }}
           disabled={isSubmitting}
         />
-        {errors.whatsapp && (
+        {errors.whatsappPhone && (
           <div className="card-error-msg">
             <AlertCircle size={14} />
-            <span>{errors.whatsapp}</span>
+            <span>{errors.whatsappPhone}</span>
           </div>
         )}
       </div>
 
       {/* 7. رقم هاتف آخر */}
       <div 
-        ref={cardRefs.altPhone} 
-        className={`form-card ${errors.altPhone ? 'error-state' : ''}`}
+        ref={cardRefs.otherPhone} 
+        className={`form-card ${errors.otherPhone ? 'error-state' : ''}`}
       >
-        <label htmlFor="altPhone" className="question-title required">رقم هاتف آخر</label>
+        <label htmlFor="otherPhone" className="question-title required">رقم هاتف آخر</label>
         <input
-          id="altPhone"
+          id="otherPhone"
           type="tel"
-          name="altPhone"
-          value={formData.altPhone}
+          name="otherPhone"
+          value={formData.otherPhone}
           onChange={handleInputChange}
           placeholder="رقم هاتف الأب أو الأم أو رقم بديل"
           className="input-text-field"
           style={{ direction: 'ltr', textAlign: 'right' }}
           disabled={isSubmitting}
         />
-        {errors.altPhone && (
+        {errors.otherPhone && (
           <div className="card-error-msg">
             <AlertCircle size={14} />
-            <span>{errors.altPhone}</span>
+            <span>{errors.otherPhone}</span>
           </div>
         )}
       </div>
@@ -529,14 +542,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         </div>
 
         <div style={{ marginTop: '20px' }}>
-          <label htmlFor="otherSubjects" className="question-title" style={{ fontSize: '0.9rem' }}>
+          <label htmlFor="otherSubject" className="question-title" style={{ fontSize: '0.9rem' }}>
             أو إذا اخترت مواد أخرى، اكتبها هنا
           </label>
           <input
-            id="otherSubjects"
+            id="otherSubject"
             type="text"
-            name="otherSubjects"
-            value={formData.otherSubjects}
+            name="otherSubject"
+            value={formData.otherSubject}
             onChange={handleInputChange}
             placeholder="اكتب أسماء المواد الإضافية هنا..."
             className="input-text-field other-subject-input"
