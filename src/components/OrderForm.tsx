@@ -93,6 +93,21 @@ const safeText = (value: unknown): string => {
   return String(value).trim();
 };
 
+// دالة تحليل اسم المادة لاستخراج العنوان وموعد التوصيل بشكل منفصل
+const parseSubjectName = (subject: string) => {
+  const match = subject.match(/(.+?)\s*\((.+?)\)/);
+  if (match) {
+    return {
+      title: match[1].trim(),
+      details: match[2].trim()
+    };
+  }
+  return {
+    title: subject,
+    details: ''
+  };
+};
+
 // دالة تسعير المواد في الفرع الأمامي
 const getSubjectPrice = (generation: string, subjectName: string, packagePriceVal: string): number => {
   const name = subjectName.toLowerCase();
@@ -140,7 +155,10 @@ export const calculateOrderTotal = (
     subjects.forEach(subject => {
       const price = getSubjectPrice(generation, subject, packagePriceVal);
       subtotal += price;
-      priceItems.push({ name: subject, price });
+      
+      // تبسيط الاسم للملخص
+      const { title } = parseSubjectName(subject);
+      priceItems.push({ name: title, price });
     });
     
     if (otherSubject.trim()) {
@@ -150,7 +168,7 @@ export const calculateOrderTotal = (
       } else if (generation.includes('BTEC') || generation.includes('بيتيك')) {
         otherPrice = BTEC_PRICE;
       } else { // 2008
-        otherPrice = 4.0; // السعر الافتراضي للمادة الأخرى في 2008
+        otherPrice = 4.0;
       }
       subtotal += otherPrice;
       priceItems.push({ name: `مواد أخرى (${otherSubject.trim()})`, price: otherPrice });
@@ -633,23 +651,73 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       >
         <span className="question-title">المادة المطلوبة</span>
         <p className="question-description">يمكنك اختيار مادة واحدة أو عدة مواد مطلوبة:</p>
-        <div className="options-container">
+        <div className="options-container" style={{ gap: '8px' }}>
           {SUBJECTS_LIST.map(subject => {
             const isSelected = formData.subjects.includes(subject);
+            const { title, details } = parseSubjectName(subject);
+            
+            // حساب السعر التلقائي للمادة لعرضه بجانب الاسم
+            let priceText = '';
+            if (formData.generation) {
+              if (formData.generation.includes('2009')) {
+                if (formData.packagePrice) {
+                  const price = getSubjectPrice(formData.generation, subject, formData.packagePrice);
+                  priceText = `${price.toFixed(2)} JD`;
+                } else {
+                  priceText = '2.5 / 3.5 JD';
+                }
+              } else {
+                const price = getSubjectPrice(formData.generation, subject, formData.packagePrice);
+                priceText = `${price.toFixed(2)} JD`;
+              }
+            } else {
+              priceText = 'يُحدد حسب الصف';
+            }
+
             return (
               <div 
                 key={subject}
                 className={`option-row checkbox ${isSelected ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
                 onClick={() => !isSubmitting && handleCheckboxSelect(subject)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 16px',
+                  border: isSelected ? '1px solid var(--google-purple)' : '1px solid var(--border-color)',
+                  backgroundColor: isSelected ? 'var(--google-purple-light)' : '#fff',
+                  borderRadius: '6px',
+                  transition: 'all 0.2s',
+                  cursor: 'pointer'
+                }}
               >
-                <input 
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => {}}
-                  className="option-input"
-                  disabled={isSubmitting}
-                />
-                <span className="option-label">{subject}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexGrow: 1 }}>
+                  <input 
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => {}}
+                    className="option-input"
+                    disabled={isSubmitting}
+                  />
+                  <div className="option-label" style={{ paddingRight: '28px' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-color)' }}>{title}</div>
+                    {details && (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 400 }}>
+                        {details}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <span style={{ 
+                  fontWeight: 700, 
+                  color: isSelected ? 'var(--google-purple)' : 'var(--text-muted)',
+                  fontSize: '0.95rem',
+                  whiteSpace: 'nowrap',
+                  marginLeft: '8px'
+                }}>
+                  {priceText}
+                </span>
               </div>
             );
           })}
@@ -765,10 +833,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Receipt size={20} style={{ color: 'var(--google-purple)' }} />
-            <span className="question-title" style={{ margin: 0 }}>ملخص تفاصيل السعر للفاتورة:</span>
+            <span className="question-title" style={{ margin: 0 }}>ملخص الطلب:</span>
           </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.95rem' }}>
+            <div style={{ color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.88rem' }}>
+              عدد المواد المختارة: <strong>{formData.subjects.length + (formData.otherSubject.trim() ? 1 : 0)}</strong> مواد
+            </div>
+            
             {priceSummary.priceItems.map((item, index) => (
               <div key={index} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
                 <span style={{ color: 'var(--text-color)', fontWeight: 500 }}>{item.name}</span>
@@ -782,12 +854,12 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             </div>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #ddd', paddingBottom: '8px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>سعر التوصيل:</span>
+              <span style={{ color: 'var(--text-muted)' }}>التوصيل:</span>
               <span style={{ fontWeight: 700 }}>{priceSummary.deliveryFee.toFixed(2)} JD</span>
             </div>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800, marginTop: '4px' }}>
-              <span style={{ color: 'var(--text-color)' }}>الإجمالي المطلوب:</span>
+              <span style={{ color: 'var(--text-color)' }}>الإجمالي الكلي:</span>
               <span style={{ color: 'var(--google-purple)' }}>{priceSummary.total.toFixed(2)} JD</span>
             </div>
           </div>
@@ -799,7 +871,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         <span className="warning-title">⚠️ ملاحظة</span>
         <span className="warning-item">
           <span>⭕</span>
-          <span>يتم إرسال وتوصيل كل مادة على حدة قبل موعد الامتحان.</span>
+          <span>سيتم إرسال وتوصيل كل مادة على حدة قبل موعد الامتحان.</span>
         </span>
         <span className="warning-item">
           <span>⭕</span>
