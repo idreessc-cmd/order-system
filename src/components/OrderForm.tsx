@@ -25,6 +25,15 @@ export interface FormState {
   notes: string;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+  price: number | null;
+  description: string;
+  category: string;
+  status: string; // active | disabled
+}
+
 const GOVERNORATES = [
   'عمان',
   'الزرقاء',
@@ -40,77 +49,11 @@ const GOVERNORATES = [
   'العقبة'
 ];
 
-// ترتيب المواد المطلوبة: أولاً 2009، ثم 2008 وباقي المواد، ثم BTEC
-const SUBJECTS_LIST = [
-  // 1. مواد 2009
-  'امتحانات لغة عربية',
-  'امتحانات إنجليزي',
-  'امتحانات تاريخ الأردن',
-  'امتحانات تربية إسلامية',
-  
-  // 2. مواد 2008 والمواد الأخرى
-  'امتحانات رياضيات هندسي (التوصيل يوم الأربعاء 1/7)',
-  'امتحانات ثقافة مالية (التوصيل يوم الجمعة 3/7)',
-  'امتحانات إنجليزي متقدم 2008 (التوصيل يوم الأحد 5/7)',
-  'امتحانات فيزياء (التوصيل يوم الثلاثاء 7/7)',
-  'امتحانات كيمياء (التوصيل يوم الجمعة 10/7)',
-  'امتحانات تاريخ 2008 (التوصيل يوم الجمعة 10/7)',
-  'امتحانات علوم الأرض (التوصيل يوم الإثنين 13/7)',
-  'امتحانات فلسفة (التوصيل يوم الإثنين 13/7)',
-  'امتحانات لغة عربية 2008 (التوصيل يوم الأربعاء 15/7)',
-  'امتحانات علوم حياتية (التوصيل يوم الجمعة 17/7)',
-  'امتحانات تربية إسلامية تخصص 2008 (انتهى موعد التقديم)',
-  'امتحانات جغرافيا (سيتم توفيرها داخل قروباتنا)',
-  'امتحانات رياضيات أعمال',
-  'امتحانات علم النفس والاجتماع',
-  
-  // 3. مواد BTEC
-  'امتحانات إنجليزي بيتيك (التوصيل يوم الأحد 5/7)',
-  'امتحانات لغة عربية بيتيك (التوصيل يوم الثلاثاء 7/7)',
-  'امتحانات تاريخ الأردن بيتيك (التوصيل يوم الأربعاء 15/7)',
-  'امتحانات تربية إسلامية بيتيك (التوصيل يوم الجمعة 17/7)'
-];
-
-// جدول أسعار المواد الثابتة
-const SUBJECT_PRICES: Record<string, string> = {
-  'امتحانات لغة عربية': '2.5 JD',
-  'امتحانات إنجليزي': '2.5 JD',
-  'امتحانات تاريخ الأردن': '2.5 JD',
-  'امتحانات تربية إسلامية': '2.5 JD',
-  'امتحانات رياضيات هندسي (التوصيل يوم الأربعاء 1/7)': '4.5 JD',
-  'امتحانات ثقافة مالية (التوصيل يوم الجمعة 3/7)': '4 JD',
-  'امتحانات إنجليزي متقدم 2008 (التوصيل يوم الأحد 5/7)': '4 JD',
-  'امتحانات فيزياء (التوصيل يوم الثلاثاء 7/7)': '4 JD',
-  'امتحانات كيمياء (التوصيل يوم الجمعة 10/7)': '4.5 JD',
-  'امتحانات تاريخ 2008 (التوصيل يوم الجمعة 10/7)': '3.5 JD',
-  'امتحانات علوم الأرض (التوصيل يوم الإثنين 13/7)': '3.5 JD',
-  'امتحانات فلسفة (التوصيل يوم الإثنين 13/7)': '4.5 JD',
-  'امتحانات لغة عربية 2008 (التوصيل يوم الأربعاء 15/7)': '4 JD',
-  'امتحانات علوم حياتية (التوصيل يوم الجمعة 17/7)': '4.5 JD',
-  'امتحانات إنجليزي بيتيك (التوصيل يوم الأحد 5/7)': '3.5 JD',
-  'امتحانات لغة عربية بيتيك (التوصيل يوم الثلاثاء 7/7)': '3.5 JD',
-  'امتحانات تاريخ الأردن بيتيك (التوصيل يوم الأربعاء 15/7)': '3.5 JD',
-  'امتحانات تربية إسلامية بيتيك (التوصيل يوم الجمعة 17/7)': '3.5 JD',
-  'امتحانات تربية إسلامية تخصص 2008 (انتهى موعد التقديم)': 'يُحدد لاحقًا',
-  'امتحانات جغرافيا (سيتم توفيرها داخل قروباتنا)': 'يُحدد لاحقًا',
-  'امتحانات رياضيات أعمال': 'يُحدد لاحقًا',
-  'امتحانات علم النفس والاجتماع': 'يُحدد لاحقًا'
-};
-
-// المواد المغلقة والتي انتهى موعد التقديم لها
-const DISABLED_SUBJECTS = [
-  'امتحانات تربية إسلامية تخصص 2008 (انتهى موعد التقديم)',
-  'امتحانات جغرافيا (سيتم توفيرها داخل قروباتنا)',
-  'امتحانات رياضيات أعمال',
-  'امتحانات علم النفس والاجتماع'
-];
-
 const safeText = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
 };
 
-// دالة تحليل اسم المادة لاستخراج العنوان وموعد التوصيل بشكل منفصل
 const parseSubjectName = (subject: string) => {
   const match = subject.match(/(.+?)\s*\((.+?)\)/);
   if (match) {
@@ -148,8 +91,33 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     notes: ''
   });
 
+  const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(true);
+  const [subjectsError, setSubjectsError] = useState('');
+
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'api' | 'subjectsList', string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // جلب المواد ديناميكياً من السحابة عند تحميل النموذج
+  useEffect(() => {
+    const loadSubjects = async () => {
+      try {
+        const response = await fetch('/.netlify/functions/get-subjects');
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+          setSubjectsList(result.subjects || []);
+        } else {
+          setSubjectsError(result.message || 'تعذر تحميل المواد، يرجى تحديث الصفحة أو المحاولة لاحقًا.');
+        }
+      } catch (err) {
+        setSubjectsError('تعذر تحميل المواد، يرجى تحديث الصفحة أو المحاولة لاحقًا.');
+      } finally {
+        setLoadingSubjects(false);
+      }
+    };
+    loadSubjects();
+  }, []);
 
   // Initialize form data securely if in edit mode
   useEffect(() => {
@@ -199,16 +167,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   };
 
-  const handleCheckboxSelect = (subject: string) => {
-    if (DISABLED_SUBJECTS.includes(subject)) return; // منع الاختيار للمواد الملغاة
-    
+  const handleCheckboxSelect = (subjectName: string) => {
     setFormData(prev => {
-      const isSelected = prev.subjects.includes(subject);
+      const isSelected = prev.subjects.includes(subjectName);
       let newSubjects: string[];
       if (isSelected) {
-        newSubjects = prev.subjects.filter(s => s !== subject);
+        newSubjects = prev.subjects.filter(s => s !== subjectName);
       } else {
-        newSubjects = [...prev.subjects, subject];
+        newSubjects = [...prev.subjects, subjectName];
       }
       return { ...prev, subjects: newSubjects };
     });
@@ -578,67 +544,85 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       >
         <span className="question-title">المادة المطلوبة</span>
         <p className="question-description">يمكنك اختيار مادة واحدة أو عدة مواد مطلوبة:</p>
-        <div className="options-container" style={{ gap: '8px' }}>
-          {SUBJECTS_LIST.map(subject => {
-            const isSelected = formData.subjects.includes(subject);
-            const isDisabled = DISABLED_SUBJECTS.includes(subject);
-            const { title, details } = parseSubjectName(subject);
-            
-            // جلب السعر الثابت من جدول الأسعار
-            const priceText = SUBJECT_PRICES[subject] || 'يُحدد لاحقًا';
+        
+        {loadingSubjects ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+            <div className="google-spinner"></div>
+          </div>
+        ) : subjectsError ? (
+          <div className="card-error-msg" style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <AlertCircle size={16} />
+            <span>{subjectsError}</span>
+          </div>
+        ) : subjectsList.length === 0 ? (
+          <div style={{ padding: '16px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
+            لا توجد مواد متاحة حاليًا.
+          </div>
+        ) : (
+          <div className="options-container" style={{ gap: '8px' }}>
+            {subjectsList.map(subject => {
+              const isSelected = formData.subjects.includes(subject.name);
+              const isDisabled = subject.status === 'disabled';
+              const { title, details } = parseSubjectName(subject.name);
+              
+              // عرض السعر الثابت المجلوب من السحابة أو الوصف
+              const priceText = subject.price !== null && subject.price !== undefined 
+                ? `${subject.price} JD` 
+                : 'يُحدد لاحقًا';
 
-            return (
-              <div 
-                key={subject}
-                className={`option-row checkbox ${isSelected ? 'checked' : ''} ${(isSubmitting || isDisabled) ? 'disabled' : ''}`}
-                onClick={() => !isSubmitting && !isDisabled && handleCheckboxSelect(subject)}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '12px 16px',
-                  border: isSelected ? '1px solid var(--google-purple)' : '1px solid var(--border-color)',
-                  backgroundColor: isSelected ? 'var(--google-purple-light)' : (isDisabled ? '#f5f5f5' : '#fff'),
-                  opacity: isDisabled ? 0.65 : 1,
-                  borderRadius: '6px',
-                  transition: 'all 0.2s',
-                  cursor: isDisabled ? 'not-allowed' : 'pointer'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexGrow: 1 }}>
-                  <input 
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => {}}
-                    className="option-input"
-                    disabled={isSubmitting || isDisabled}
-                  />
-                  <div className="option-label" style={{ paddingRight: '28px' }}>
-                    <div style={{ fontWeight: 600, color: isDisabled ? 'var(--text-muted)' : 'var(--text-color)' }}>
-                      {title}
-                      {isDisabled && <span style={{ marginRight: '8px', fontSize: '0.8rem', color: '#d93025', fontWeight: 700 }}>(انتهى التقديم)</span>}
-                    </div>
-                    {details && (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 400 }}>
-                        {details}
+              return (
+                <div 
+                  key={subject.id}
+                  className={`option-row checkbox ${isSelected ? 'checked' : ''} ${(isSubmitting || isDisabled) ? 'disabled' : ''}`}
+                  onClick={() => !isSubmitting && !isDisabled && handleCheckboxSelect(subject.name)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    border: isSelected ? '1px solid var(--google-purple)' : '1px solid var(--border-color)',
+                    backgroundColor: isSelected ? 'var(--google-purple-light)' : (isDisabled ? '#f5f5f5' : '#fff'),
+                    opacity: isDisabled ? 0.65 : 1,
+                    borderRadius: '6px',
+                    transition: 'all 0.2s',
+                    cursor: isDisabled ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexGrow: 1 }}>
+                    <input 
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {}}
+                      className="option-input"
+                      disabled={isSubmitting || isDisabled}
+                    />
+                    <div className="option-label" style={{ paddingRight: '28px' }}>
+                      <div style={{ fontWeight: 600, color: isDisabled ? 'var(--text-muted)' : 'var(--text-color)' }}>
+                        {title}
+                        {isDisabled && <span style={{ marginRight: '8px', fontSize: '0.8rem', color: '#d93025', fontWeight: 700 }}>(انتهى التقديم)</span>}
                       </div>
-                    )}
+                      {(subject.description || details) && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 400 }}>
+                          {subject.description || details}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  
+                  <span style={{ 
+                    fontWeight: 700, 
+                    color: isSelected ? 'var(--google-purple)' : 'var(--text-muted)',
+                    fontSize: '0.95rem',
+                    whiteSpace: 'nowrap',
+                    marginLeft: '8px'
+                  }}>
+                    {priceText}
+                  </span>
                 </div>
-                
-                <span style={{ 
-                  fontWeight: 700, 
-                  color: isSelected ? 'var(--google-purple)' : 'var(--text-muted)',
-                  fontSize: '0.95rem',
-                  whiteSpace: 'nowrap',
-                  marginLeft: '8px'
-                }}>
-                  {priceText}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         <div style={{ marginTop: '20px' }}>
           <label htmlFor="otherSubject" className="question-title" style={{ fontSize: '0.9rem' }}>
@@ -727,7 +711,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         <button 
           type="submit" 
           className="btn-submit-google"
-          disabled={isSubmitting}
+          disabled={isSubmitting || loadingSubjects}
         >
           {isSubmitting ? (
             <>

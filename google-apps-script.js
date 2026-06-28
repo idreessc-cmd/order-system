@@ -1,25 +1,34 @@
 // Google Apps Script for Tawjihi Exam Order System (Netlify & CORS Safe)
-// Version 3.3.0 - Reverted price columns and calculations, keeping it simple as requested
+// Version 4.0.0 - Adds Dynamic Subjects Management (Subjects Sheet)
 
 function doPost(e) {
   try {
-    // Parse the incoming JSON data
     var payload = JSON.parse(e.postData.contents);
     var action = payload.action;
     
     var response;
     
+    // Public operations
     if (action === "submitOrder") {
       response = submitOrder(payload.data || payload);
     } else if (action === "findOrder") {
       response = findOrder(payload);
     } else if (action === "updateOrder") {
       response = updateOrder(payload);
+    } else if (action === "getSubjects") {
+      response = getSubjects();
+    } 
+    // Admin operations (auth tokens are validated in Netlify Functions before calling this script)
+    else if (action === "adminGetSubjects") {
+      response = adminGetSubjects();
+    } else if (action === "adminSaveSubject") {
+      response = adminSaveSubject(payload.subject);
+    } else if (action === "adminDeleteSubject") {
+      response = adminDeleteSubject(payload.id);
     } else {
       response = { success: false, message: "إجراء غير معروف (Unknown action)" };
     }
     
-    // Return JSON response with CORS headers
     return ContentService.createTextOutput(JSON.stringify(response))
       .setMimeType(ContentService.MimeType.JSON)
       .setHeader("Access-Control-Allow-Origin", "*");
@@ -35,21 +44,256 @@ function doPost(e) {
   }
 }
 
-// 1. تسجيل طلب جديد (Submit New Order)
+// دالة لضمان وجود الجداول وإنشائها بالبيانات الأولية عند الحاجة
+function getOrCreateSubjectsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Subjects");
+  if (!sheet) {
+    sheet = ss.insertSheet("Subjects");
+    var headers = ["id", "name", "price", "description", "category", "status", "sortOrder", "createdAt", "updatedAt"];
+    sheet.appendRow(headers);
+    
+    var initialSubjects = [
+      // 2009
+      ["arabic-2009", "امتحانات لغة عربية 2009", 2.5, "", "2009", "active", 1, new Date(), new Date()],
+      ["english-2009", "امتحانات إنجليزي 2009", 2.5, "", "2009", "active", 2, new Date(), new Date()],
+      ["jordan-history-2009", "امتحانات تاريخ الأردن 2009", 2.5, "", "2009", "active", 3, new Date(), new Date()],
+      ["islamic-2009", "امتحانات تربية إسلامية 2009", 2.5, "", "2009", "active", 4, new Date(), new Date()],
+      
+      // 2008
+      ["math-advanced-2008", "امتحانات رياضيات هندسي", 4.5, "التوصيل يوم الأربعاء 1/7", "2008", "active", 5, new Date(), new Date()],
+      ["financial-2008", "امتحانات ثقافة مالية", 4.0, "التوصيل يوم الجمعة 3/7", "2008", "active", 6, new Date(), new Date()],
+      ["english-advanced-2008", "امتحانات إنجليزي متقدم 2008", 4.0, "التوصيل يوم الأحد 5/7", "2008", "active", 7, new Date(), new Date()],
+      ["physics-2008", "امتحانات فيزياء", 4.0, "التوصيل يوم الثلاثاء 7/7", "2008", "active", 8, new Date(), new Date()],
+      ["chemistry-2008", "امتحانات كيمياء", 4.5, "التوصيل يوم الجمعة 10/7", "2008", "active", 9, new Date(), new Date()],
+      ["history-2008", "امتحانات تاريخ 2008", 3.5, "التوصيل يوم الجمعة 10/7", "2008", "active", 10, new Date(), new Date()],
+      ["earth-science-2008", "امتحانات علوم الأرض", 3.5, "التوصيل يوم الإثنين 13/7", "2008", "active", 11, new Date(), new Date()],
+      ["philosophy-2008", "امتحانات فلسفة", 4.5, "التوصيل يوم الإثنين 13/7", "2008", "active", 12, new Date(), new Date()],
+      ["arabic-2008", "امتحانات لغة عربية 2008", 4.0, "التوصيل يوم الأربعاء 15/7", "2008", "active", 13, new Date(), new Date()],
+      ["biology-2008", "امتحانات علوم حياتية", 4.5, "التوصيل يوم الجمعة 17/7", "2008", "active", 14, new Date(), new Date()],
+      
+      // BTEC
+      ["english-btec", "امتحانات إنجليزي بيتيك", 3.5, "التوصيل يوم الأحد 5/7", "BTEC", "active", 15, new Date(), new Date()],
+      ["arabic-btec", "امتحانات لغة عربية بيتيك", 3.5, "التوصيل يوم الثلاثاء 7/7", "BTEC", "active", 16, new Date(), new Date()],
+      ["jordan-history-btec", "امتحانات تاريخ الأردن بيتيك", 3.5, "التوصيل يوم الأربعاء 15/7", "BTEC", "active", 17, new Date(), new Date()],
+      ["islamic-btec", "امتحانات تربية إسلامية بيتيك", 3.5, "التوصيل يوم الجمعة 17/7", "BTEC", "active", 18, new Date(), new Date()],
+      
+      // Closed
+      ["islamic-special-2008", "امتحانات تربية إسلامية تخصص 2008", "", "انتهى موعد التقديم", "closed", "disabled", 19, new Date(), new Date()],
+      ["geography", "امتحانات جغرافيا", "", "سيتم توفيرها داخل قروباتنا", "closed", "disabled", 20, new Date(), new Date()],
+      ["business-math", "امتحانات رياضيات أعمال", "", "انتهى موعد التقديم", "closed", "disabled", 21, new Date(), new Date()],
+      ["psychology", "امتحانات علم النفس والاجتماع", "", "انتهى موعد التقديم", "closed", "disabled", 22, new Date(), new Date()]
+    ];
+    
+    for (var i = 0; i < initialSubjects.length; i++) {
+      sheet.appendRow(initialSubjects[i]);
+    }
+  }
+  return sheet;
+}
+
+// 1. جلب المواد للطلاب (نشطة أو معطلة فقط - غير المخفية)
+function getSubjects() {
+  try {
+    var sheet = getOrCreateSubjectsSheet();
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return { success: true, subjects: [] };
+    
+    var values = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+    var subjects = [];
+    
+    for (var i = 0; i < values.length; i++) {
+      var row = values[i];
+      var status = row[5].toString().trim();
+      
+      // لا ترجع المواد المخفية (hidden) للطلاب
+      if (status !== "hidden") {
+        subjects.push({
+          id: row[0].toString(),
+          name: row[1].toString(),
+          price: row[2] ? parseFloat(row[2]) : null,
+          description: row[3].toString(),
+          category: row[4].toString(),
+          status: status,
+          sortOrder: parseInt(row[6], 10) || 99
+        });
+      }
+    }
+    
+    // ترتيب ظهور المواد حسب الفئة والترتيب الرقمي
+    subjects.sort(function(a, b) {
+      var catOrder = { "2009": 1, "2008": 2, "BTEC": 3, "closed": 4 };
+      var orderA = catOrder[a.category] || 99;
+      var orderB = catOrder[b.category] || 99;
+      
+      if (orderA !== orderB) return orderA - orderB;
+      return a.sortOrder - b.sortOrder;
+    });
+    
+    return { success: true, subjects: subjects };
+  } catch (error) {
+    return { success: false, message: "فشل جلب المواد: " + error.toString() };
+  }
+}
+
+// 2. جلب جميع المواد للوحة التحكم (بما فيها المخفية)
+function adminGetSubjects() {
+  try {
+    var sheet = getOrCreateSubjectsSheet();
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return { success: true, subjects: [] };
+    
+    var values = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+    var subjects = [];
+    
+    for (var i = 0; i < values.length; i++) {
+      var row = values[i];
+      subjects.push({
+        id: row[0].toString(),
+        name: row[1].toString(),
+        price: row[2] ? parseFloat(row[2]) : null,
+        description: row[3].toString(),
+        category: row[4].toString(),
+        status: row[5].toString(),
+        sortOrder: parseInt(row[6], 10) || 99,
+        createdAt: row[7] ? row[7].toString() : "",
+        updatedAt: row[8] ? row[8].toString() : ""
+      });
+    }
+    
+    // ترتيب ظهور المواد للادمن
+    subjects.sort(function(a, b) {
+      var catOrder = { "2009": 1, "2008": 2, "BTEC": 3, "closed": 4 };
+      var orderA = catOrder[a.category] || 99;
+      var orderB = catOrder[b.category] || 99;
+      
+      if (orderA !== orderB) return orderA - orderB;
+      return a.sortOrder - b.sortOrder;
+    });
+    
+    return { success: true, subjects: subjects };
+  } catch (error) {
+    return { success: false, message: "فشل جلب مواد الإدارة: " + error.toString() };
+  }
+}
+
+// 3. إضافة أو تعديل مادة من لوحة التحكم
+function adminSaveSubject(sub) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return { success: false, message: "السيرفر مشغول، يرجى المحاولة مرة أخرى." };
+  }
+  
+  try {
+    var sheet = getOrCreateSubjectsSheet();
+    var lastRow = sheet.getLastRow();
+    var subId = sub.id ? sub.id.toString().trim() : "";
+    
+    // توليد معرف تلقائي في حال عدم وجوده
+    if (!subId) {
+      subId = "sub-" + Math.random().toString(36).substring(2, 9) + "-" + new Date().getTime();
+    }
+    
+    var values = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getValues() : [];
+    var rowIndex = -1;
+    
+    for (var i = 0; i < values.length; i++) {
+      if (values[i][0].toString() === subId) {
+        rowIndex = i + 2;
+        break;
+      }
+    }
+    
+    var now = new Date();
+    var priceVal = sub.price !== "" && sub.price !== null && sub.price !== undefined ? parseFloat(sub.price) : "";
+    
+    if (rowIndex !== -1) {
+      // تعديل مادة موجودة
+      sheet.getRange(rowIndex, 2).setValue(sub.name.toString());
+      sheet.getRange(rowIndex, 3).setValue(priceVal);
+      sheet.getRange(rowIndex, 4).setValue(sub.description ? sub.description.toString() : "");
+      sheet.getRange(rowIndex, 5).setValue(sub.category.toString());
+      sheet.getRange(rowIndex, 6).setValue(sub.status.toString());
+      sheet.getRange(rowIndex, 7).setValue(parseInt(sub.sortOrder, 10) || 99);
+      sheet.getRange(rowIndex, 9).setValue(now); // updatedAt
+    } else {
+      // إضافة مادة جديدة
+      sheet.appendRow([
+        subId,
+        sub.name.toString(),
+        priceVal,
+        sub.description ? sub.description.toString() : "",
+        sub.category.toString(),
+        sub.status.toString(),
+        parseInt(sub.sortOrder, 10) || 99,
+        now, // createdAt
+        now  // updatedAt
+      ]);
+    }
+    
+    return { success: true, message: "تم حفظ المادة بنجاح" };
+  } catch (error) {
+    return { success: false, message: "فشل حفظ المادة: " + error.toString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 4. حذف مادة (سوفت دليت - تغيير الحالة لـ hidden)
+function adminDeleteSubject(id) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+  } catch (e) {
+    return { success: false, message: "السيرفر مشغول." };
+  }
+  
+  try {
+    var sheet = getOrCreateSubjectsSheet();
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return { success: false, message: "لا يوجد مواد لحذفها." };
+    
+    var values = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    var rowIndex = -1;
+    
+    for (var i = 0; i < values.length; i++) {
+      if (values[i][0].toString() === id) {
+        rowIndex = i + 2;
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return { success: false, message: "المادة غير موجودة." };
+    }
+    
+    // تغيير الحالة إلى مخفي بدلاً من حذف الصف
+    sheet.getRange(rowIndex, 6).setValue("hidden");
+    sheet.getRange(rowIndex, 9).setValue(new Date()); // updatedAt
+    
+    return { success: true, message: "تم إخفاء المادة بنجاح." };
+  } catch (error) {
+    return { success: false, message: "فشل إخفاء المادة: " + error.toString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 5. تسجيل طلب جديد (Submit New Order)
 function submitOrder(data) {
   var lock = LockService.getScriptLock();
   try {
-    // Wait up to 30 seconds for the lock to handle concurrent requests safely
     lock.waitLock(30000); 
   } catch (e) {
-    return { success: false, message: "السيرفر مشغول حالياً بطلبات أخرى. يرجى إعادة المحاولة خلال ثوانٍ." };
+    return { success: false, message: "السيرفر مشغول حالياً بطلبات أخرى." };
   }
   
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Orders");
     
-    // Create sheet and write headers if it doesn't exist (Original 17 columns)
     if (!sheet) {
       sheet = ss.insertSheet("Orders");
       var headers = [
@@ -62,18 +306,15 @@ function submitOrder(data) {
       sheet.appendRow(headers);
     }
     
-    // Ensure phone columns are formatted as text to preserve leading zeros
     formatPhoneColumnsAsText(sheet);
     
-    // Generate sequential Order ID using PropertiesService
     var props = PropertiesService.getScriptProperties();
     var lastNumStr = props.getProperty("LAST_ORDER_NUMBER");
-    var lastNum = 100000; // Default start value
+    var lastNum = 100000;
     
     if (lastNumStr) {
       lastNum = parseInt(lastNumStr, 10);
     } else {
-      // Backup check: If property is empty, check the last row ID in the sheet
       var lastRow = sheet.getLastRow();
       if (lastRow > 1) {
         var lastCellVal = sheet.getRange(lastRow, 2).getValue().toString();
@@ -92,23 +333,23 @@ function submitOrder(data) {
     var subjectsStr = Array.isArray(data.subjects) ? data.subjects.join(", ") : "";
     
     var rowData = [
-      timestamp,                            // التاريخ والوقت
-      orderId,                              // رقم الطلب
-      toText(data.fullName),                // الاسم الكامل
-      toText(data.generation),              // الصف / الجيل
-      toText(data.governorate),             // المحافظة
-      toText(data.address),                 // المنطقة / العنوان التفصيلي
-      phoneAsText(data.mobilePhone),        // رقم موبايل للتواصل
-      phoneAsText(data.whatsappPhone),      // رقم واتساب للتواصل
-      phoneAsText(data.otherPhone),         // رقم هاتف آخر
-      subjectsStr,                          // المواد المطلوبة
-      toText(data.otherSubject),            // مواد أخرى
-      toText(data.packagePrice),            // سعر بكج المادة (فارغ حالياً في الواجهة الجديدة)
-      toText(data.deliveryConfirm),         // تأكيد سعر التوصيل
-      toText(data.notes),                   // ملاحظات أخرى
-      "جديد",                               // الحالة
-      "",                                   // آخر تعديل
-      0                                     // عدد مرات التعديل
+      timestamp,
+      orderId,
+      toText(data.fullName),
+      toText(data.generation),
+      toText(data.governorate),
+      toText(data.address),
+      phoneAsText(data.mobilePhone),
+      phoneAsText(data.whatsappPhone),
+      phoneAsText(data.otherPhone),
+      subjectsStr,
+      toText(data.otherSubject),
+      toText(data.packagePrice),
+      toText(data.deliveryConfirm),
+      toText(data.notes),
+      "جديد",
+      "",
+      0
     ];
     
     sheet.appendRow(rowData);
@@ -126,7 +367,7 @@ function submitOrder(data) {
   }
 }
 
-// 2. البحث عن طلب سابق (Find Order)
+// 6. البحث عن طلب سابق (Find Order)
 function findOrder(data) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -144,8 +385,7 @@ function findOrder(data) {
     var orderNumber = data.orderNumber.toString().trim().toUpperCase();
     var phoneInput = normalizePhone(data.phone);
     
-    // Fetch all records
-    var range = sheet.getRange(2, 1, lastRow - 1, 17); // Original 17 columns
+    var range = sheet.getRange(2, 1, lastRow - 1, 17);
     var values = range.getValues();
     
     for (var i = 0; i < values.length; i++) {
@@ -158,7 +398,6 @@ function findOrder(data) {
         var rowAltPhone = normalizePhone(row[8]);
         
         if (phoneInput === rowPhone || phoneInput === rowWhatsapp || phoneInput === rowAltPhone) {
-          // Found matching order
           return {
             success: true,
             order: {
@@ -191,7 +430,7 @@ function findOrder(data) {
   }
 }
 
-// 3. تعديل طلب سابق (Update Order)
+// 7. تعديل طلب سابق (Update Order)
 function updateOrder(payload) {
   var lock = LockService.getScriptLock();
   try {
@@ -217,12 +456,11 @@ function updateOrder(payload) {
     var phoneInput = normalizePhone(payload.phone);
     var data = payload.data || {};
     
-    var range = sheet.getRange(2, 1, lastRow - 1, 17); // Original 17 columns
+    var range = sheet.getRange(2, 1, lastRow - 1, 17);
     var values = range.getValues();
     var rowIndex = -1;
     var currentEditCount = 0;
     
-    // Find the row index
     for (var i = 0; i < values.length; i++) {
       var row = values[i];
       var rowOrderId = row[1].toString().trim().toUpperCase();
@@ -247,13 +485,11 @@ function updateOrder(payload) {
       };
     }
     
-    // Ensure phone columns are formatted as text
     formatPhoneColumnsAsText(sheet);
     
     var timestamp = new Date();
     var subjectsStr = Array.isArray(data.subjects) ? data.subjects.join(", ") : "";
     
-    // Update cells in the row (Original 17 columns)
     sheet.getRange(rowIndex, 3).setValue(toText(data.fullName));
     sheet.getRange(rowIndex, 4).setValue(toText(data.generation));
     sheet.getRange(rowIndex, 5).setValue(toText(data.governorate));

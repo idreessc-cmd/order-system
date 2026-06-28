@@ -1,17 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { OrderForm } from './components/OrderForm';
 import type { FormState } from './components/OrderForm';
 import { SuccessView } from './components/SuccessView';
 import { EditOrderLookup } from './components/EditOrderLookup';
+import { AdminPanel } from './components/AdminPanel';
 import { PlusCircle, Edit3, GraduationCap } from 'lucide-react';
 
-type AppView = 'home' | 'newOrder' | 'editLookup' | 'editForm' | 'successNew' | 'successEdit';
+type AppView = 'home' | 'newOrder' | 'editLookup' | 'editForm' | 'successNew' | 'successEdit' | 'admin';
 
 function App() {
   const [view, setView] = useState<AppView>('home');
   const [orderId, setOrderId] = useState<string>('');
   const [editPhone, setEditPhone] = useState<string>('');
   const [fetchedOrderData, setFetchedOrderData] = useState<FormState | undefined>(undefined);
+
+  // الكشف عن الدخول لصفحة لوحة التحكم /admin عند التحميل
+  useEffect(() => {
+    if (window.location.pathname === '/admin') {
+      setView('admin');
+    }
+  }, []);
 
   const handleNewOrderSuccess = (id: string) => {
     setOrderId(id);
@@ -38,13 +46,21 @@ function App() {
     setEditPhone('');
     setFetchedOrderData(undefined);
     setView('home');
+    if (window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div className="form-container">
       
-      {/* 1. الصفحة الرئيسية (Home View) */}
+      {/* 1. لوحة تحكم الإدارة (Admin Panel View) */}
+      {view === 'admin' && (
+        <AdminPanel onBackToApp={handleGoHome} />
+      )}
+
+      {/* 2. الصفحة الرئيسية (Home View) */}
       {view === 'home' && (
         <>
           <div className="form-card header-card">
@@ -89,7 +105,7 @@ function App() {
         </>
       )}
 
-      {/* 2. تسجيل طلب جديد (New Order Flow) */}
+      {/* 3. تسجيل طلب جديد (New Order Flow) */}
       {view === 'newOrder' && (
         <>
           <div className="form-card header-card">
@@ -109,7 +125,7 @@ function App() {
         </>
       )}
 
-      {/* 3. التحقق لتعديل طلب سابق (Lookup Flow) */}
+      {/* 4. التحقق لتعديل طلب سابق (Lookup Flow) */}
       {view === 'editLookup' && (
         <EditOrderLookup 
           onBack={handleGoHome}
@@ -117,7 +133,7 @@ function App() {
         />
       )}
 
-      {/* 4. نموذج التعديل (Edit Form Flow) */}
+      {/* 5. نموذج التعديل (Edit Form Flow) */}
       {view === 'editForm' && (
         <>
           <div className="form-card header-card">
@@ -141,7 +157,7 @@ function App() {
         </>
       )}
 
-      {/* 5. نجاح طلب جديد (Success New View) */}
+      {/* 6. نجاح طلب جديد (Success New View) */}
       {view === 'successNew' && (
         <SuccessView 
           orderId={orderId} 
@@ -150,7 +166,7 @@ function App() {
         />
       )}
 
-      {/* 6. نجاح التعديل (Success Edit View) */}
+      {/* 7. نجاح التعديل (Success Edit View) */}
       {view === 'successEdit' && (
         <SuccessView 
           orderId={orderId} 
