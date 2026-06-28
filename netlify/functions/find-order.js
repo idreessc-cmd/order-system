@@ -34,32 +34,53 @@ export const handler = async (event, context) => {
       };
     }
     
-    // Forward the request to Google Apps Script Web App
-    const response = await fetch(googleScriptUrl, {
+    const googleResponse = await fetch(googleScriptUrl, {
       method: "POST",
-      headers: { 
-        "Content-Type": "text/plain;charset=utf-8" 
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
       },
       body: JSON.stringify({
         action: "findOrder",
         orderNumber,
         phone
-      })
+      }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Google Apps Script returned status ${response.status}`);
+    const rawText = await googleResponse.text();
+
+    let result;
+    try {
+      result = JSON.parse(rawText);
+    } catch (parseError) {
+      return {
+        statusCode: 502,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          success: false,
+          message: "رد Google Apps Script ليس JSON. تحقق من رابط Web App والصلاحيات والنشر.",
+          debug: rawText.slice(0, 500),
+        }),
+      };
     }
 
-    const result = await response.json();
+    if (!googleResponse.ok || !result.success) {
+      return {
+        statusCode: 502,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          success: false,
+          message: result.message || "فشل تنفيذ العملية داخل Google Apps Script.",
+          debug: result,
+        }),
+      };
+    }
 
     return {
       statusCode: 200,
-      headers: { 
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(result)
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(result),
     };
+
   } catch (error) {
     console.error("Error in find-order function:", error);
     return {
