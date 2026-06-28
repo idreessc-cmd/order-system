@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AlertCircle, ArrowLeft, Receipt } from 'lucide-react';
+import { AlertCircle, ArrowLeft } from 'lucide-react';
 
 interface OrderFormProps {
-  onSubmitSuccess: (orderId: string, total: number) => void;
+  onSubmitSuccess: (orderId: string) => void;
   onBack: () => void;
   initialData?: FormState;
   orderNumber?: string;
@@ -12,7 +12,7 @@ interface OrderFormProps {
 
 export interface FormState {
   fullName: string;
-  generation: string; // توجيهي 2008, إلخ.
+  generation: string;
   governorate: string;
   address: string;
   mobilePhone: string;
@@ -20,7 +20,7 @@ export interface FormState {
   otherPhone: string;
   subjects: string[];
   otherSubject: string;
-  packagePrice: string;
+  packagePrice: string; // محتفظ بها كحقل فارغ لتوافق البنية
   deliveryConfirm: string; // "تم ✅" or ""
   notes: string;
 }
@@ -40,13 +40,15 @@ const GOVERNORATES = [
   'العقبة'
 ];
 
+// ترتيب المواد المطلوبة: أولاً 2009، ثم 2008 وباقي المواد، ثم BTEC
 const SUBJECTS_LIST = [
+  // 1. مواد 2009
   'امتحانات لغة عربية',
   'امتحانات إنجليزي',
   'امتحانات تاريخ الأردن',
   'امتحانات تربية إسلامية',
-  'امتحانات تربية إسلامية تخصص 2008 (انتهى موعد التقديم)',
-  'امتحانات جغرافيا (سيتم توفيرها داخل قروباتنا)',
+  
+  // 2. مواد 2008 والمواد الأخرى
   'امتحانات رياضيات هندسي (التوصيل يوم الأربعاء 1/7)',
   'امتحانات ثقافة مالية (التوصيل يوم الجمعة 3/7)',
   'امتحانات إنجليزي متقدم 2008 (التوصيل يوم الأحد 5/7)',
@@ -57,36 +59,51 @@ const SUBJECTS_LIST = [
   'امتحانات فلسفة (التوصيل يوم الإثنين 13/7)',
   'امتحانات لغة عربية 2008 (التوصيل يوم الأربعاء 15/7)',
   'امتحانات علوم حياتية (التوصيل يوم الجمعة 17/7)',
+  'امتحانات تربية إسلامية تخصص 2008 (انتهى موعد التقديم)',
+  'امتحانات جغرافيا (سيتم توفيرها داخل قروباتنا)',
+  'امتحانات رياضيات أعمال',
+  'امتحانات علم النفس والاجتماع',
+  
+  // 3. مواد BTEC
   'امتحانات إنجليزي بيتيك (التوصيل يوم الأحد 5/7)',
   'امتحانات لغة عربية بيتيك (التوصيل يوم الثلاثاء 7/7)',
   'امتحانات تاريخ الأردن بيتيك (التوصيل يوم الأربعاء 15/7)',
-  'امتحانات تربية إسلامية بيتيك (التوصيل يوم الجمعة 17/7)',
+  'امتحانات تربية إسلامية بيتيك (التوصيل يوم الجمعة 17/7)'
+];
+
+// جدول أسعار المواد الثابتة
+const SUBJECT_PRICES: Record<string, string> = {
+  'امتحانات لغة عربية': '2.5 JD',
+  'امتحانات إنجليزي': '2.5 JD',
+  'امتحانات تاريخ الأردن': '2.5 JD',
+  'امتحانات تربية إسلامية': '2.5 JD',
+  'امتحانات رياضيات هندسي (التوصيل يوم الأربعاء 1/7)': '4.5 JD',
+  'امتحانات ثقافة مالية (التوصيل يوم الجمعة 3/7)': '4 JD',
+  'امتحانات إنجليزي متقدم 2008 (التوصيل يوم الأحد 5/7)': '4 JD',
+  'امتحانات فيزياء (التوصيل يوم الثلاثاء 7/7)': '4 JD',
+  'امتحانات كيمياء (التوصيل يوم الجمعة 10/7)': '4.5 JD',
+  'امتحانات تاريخ 2008 (التوصيل يوم الجمعة 10/7)': '3.5 JD',
+  'امتحانات علوم الأرض (التوصيل يوم الإثنين 13/7)': '3.5 JD',
+  'امتحانات فلسفة (التوصيل يوم الإثنين 13/7)': '4.5 JD',
+  'امتحانات لغة عربية 2008 (التوصيل يوم الأربعاء 15/7)': '4 JD',
+  'امتحانات علوم حياتية (التوصيل يوم الجمعة 17/7)': '4.5 JD',
+  'امتحانات إنجليزي بيتيك (التوصيل يوم الأحد 5/7)': '3.5 JD',
+  'امتحانات لغة عربية بيتيك (التوصيل يوم الثلاثاء 7/7)': '3.5 JD',
+  'امتحانات تاريخ الأردن بيتيك (التوصيل يوم الأربعاء 15/7)': '3.5 JD',
+  'امتحانات تربية إسلامية بيتيك (التوصيل يوم الجمعة 17/7)': '3.5 JD',
+  'امتحانات تربية إسلامية تخصص 2008 (انتهى موعد التقديم)': 'يُحدد لاحقًا',
+  'امتحانات جغرافيا (سيتم توفيرها داخل قروباتنا)': 'يُحدد لاحقًا',
+  'امتحانات رياضيات أعمال': 'يُحدد لاحقًا',
+  'امتحانات علم النفس والاجتماع': 'يُحدد لاحقًا'
+};
+
+// المواد المغلقة والتي انتهى موعد التقديم لها
+const DISABLED_SUBJECTS = [
+  'امتحانات تربية إسلامية تخصص 2008 (انتهى موعد التقديم)',
+  'امتحانات جغرافيا (سيتم توفيرها داخل قروباتنا)',
   'امتحانات رياضيات أعمال',
   'امتحانات علم النفس والاجتماع'
 ];
-
-// المتغيرات الثابتة للتسعير حسب الجيل
-const OLD_PRICES = {
-  blackAndWhite: 2.5,
-  colored: 3.5
-};
-
-const SUBJECT_PRICES_2008 = {
-  "رياضيات": 4.5,
-  "ثقافة مالية": 4.0,
-  "كيمياء": 4.5,
-  "علوم حياتية": 4.5,
-  "علوم أرض": 3.5,
-  "فلسفة": 4.5,
-  "فيزياء": 4.0,
-  "تاريخ": 3.5,
-  "عربي": 4.0,
-  "إنجليزي": 4.0,
-  "default": 3.5 // للتربية الإسلامية أو أي مادة أخرى
-};
-
-const BTEC_PRICE = 3.5;
-const DELIVERY_FEE = 1.0;
 
 const safeText = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -108,84 +125,6 @@ const parseSubjectName = (subject: string) => {
   };
 };
 
-// دالة تسعير المواد في الفرع الأمامي
-const getSubjectPrice = (generation: string, subjectName: string, packagePriceVal: string): number => {
-  const name = subjectName.toLowerCase();
-  
-  if (generation.includes('BTEC') || generation.includes('بيتيك')) {
-    return BTEC_PRICE;
-  }
-  
-  if (generation.includes('2008')) {
-    if (name.includes('رياضيات')) return SUBJECT_PRICES_2008["رياضيات"];
-    if (name.includes('ثقافة مالية')) return SUBJECT_PRICES_2008["ثقافة مالية"];
-    if (name.includes('كيمياء')) return SUBJECT_PRICES_2008["كيمياء"];
-    if (name.includes('علوم حياتية')) return SUBJECT_PRICES_2008["علوم حياتية"];
-    if (name.includes('علوم الأرض') || name.includes('علوم أرض') || name.includes('علوم ارض')) return SUBJECT_PRICES_2008["علوم أرض"];
-    if (name.includes('فلسفة')) return SUBJECT_PRICES_2008["فلسفة"];
-    if (name.includes('فيزياء')) return SUBJECT_PRICES_2008["فيزياء"];
-    if (name.includes('تاريخ')) return SUBJECT_PRICES_2008["تاريخ"];
-    if (name.includes('لغة عربية') || name.includes('عربي')) return SUBJECT_PRICES_2008["عربي"];
-    if (name.includes('إنجليزي') || name.includes('نجليزي')) return SUBJECT_PRICES_2008["إنجليزي"];
-    return SUBJECT_PRICES_2008["default"];
-  }
-  
-  if (generation.includes('2009')) {
-    // 2009 يعتمد على اختيار البكج أبيض وأسود أو ملون من الأسعار القديمة
-    if (packagePriceVal && packagePriceVal.includes('2.5')) {
-      return OLD_PRICES.blackAndWhite;
-    }
-    return OLD_PRICES.colored;
-  }
-  
-  return OLD_PRICES.colored; // الاحتياطي الافتراضي
-};
-
-// دالة حساب مجاميع السعر
-export const calculateOrderTotal = (
-  generation: string,
-  subjects: string[],
-  otherSubject: string,
-  packagePriceVal: string
-) => {
-  const priceItems: { name: string; price: number }[] = [];
-  let subtotal = 0;
-  
-  if (generation) {
-    subjects.forEach(subject => {
-      const price = getSubjectPrice(generation, subject, packagePriceVal);
-      subtotal += price;
-      
-      // تبسيط الاسم للملخص
-      const { title } = parseSubjectName(subject);
-      priceItems.push({ name: title, price });
-    });
-    
-    if (otherSubject.trim()) {
-      let otherPrice = 0;
-      if (generation.includes('2009')) {
-        otherPrice = getSubjectPrice(generation, 'أخرى', packagePriceVal);
-      } else if (generation.includes('BTEC') || generation.includes('بيتيك')) {
-        otherPrice = BTEC_PRICE;
-      } else { // 2008
-        otherPrice = 4.0;
-      }
-      subtotal += otherPrice;
-      priceItems.push({ name: `مواد أخرى (${otherSubject.trim()})`, price: otherPrice });
-    }
-  }
-  
-  const deliveryFee = subtotal > 0 ? DELIVERY_FEE : 0;
-  const total = subtotal + deliveryFee;
-  
-  return {
-    priceItems,
-    subtotal,
-    deliveryFee,
-    total
-  };
-};
-
 export const OrderForm: React.FC<OrderFormProps> = ({ 
   onSubmitSuccess, 
   onBack,
@@ -204,7 +143,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     otherPhone: '',
     subjects: [],
     otherSubject: '',
-    packagePrice: '',
+    packagePrice: '', // محتفظ بها كحقل فارغ لتوافق البنية
     deliveryConfirm: '',
     notes: ''
   });
@@ -225,7 +164,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         otherPhone: safeText(initialData.otherPhone),
         subjects: Array.isArray(initialData.subjects) ? initialData.subjects : [],
         otherSubject: safeText(initialData.otherSubject),
-        packagePrice: safeText(initialData.packagePrice),
+        packagePrice: '',
         deliveryConfirm: safeText(initialData.deliveryConfirm),
         notes: safeText(initialData.notes)
       });
@@ -242,7 +181,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     whatsappPhone: useRef<HTMLDivElement>(null),
     otherPhone: useRef<HTMLDivElement>(null),
     subjectsList: useRef<HTMLDivElement>(null),
-    packagePrice: useRef<HTMLDivElement>(null),
     deliveryConfirm: useRef<HTMLDivElement>(null)
   };
 
@@ -254,7 +192,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   };
 
-  const handleRadioSelect = (name: 'generation' | 'governorate' | 'packagePrice' | 'deliveryConfirm', value: string) => {
+  const handleRadioSelect = (name: 'generation' | 'governorate' | 'deliveryConfirm', value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
@@ -262,6 +200,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   };
 
   const handleCheckboxSelect = (subject: string) => {
+    if (DISABLED_SUBJECTS.includes(subject)) return; // منع الاختيار للمواد الملغاة
+    
     setFormData(prev => {
       const isSelected = prev.subjects.includes(subject);
       let newSubjects: string[];
@@ -324,11 +264,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       newErrors.subjectsList = 'يرجى اختيار مادة واحدة على الأقل أو كتابة مواد أخرى في الحقل المخصص';
     }
 
-    // التحقق من سعر البكج فقط لجيل توجيهي 2009
-    if (formData.generation.includes('2009') && !formData.packagePrice) {
-      newErrors.packagePrice = 'هذا السؤال مطلوب إجباريًا';
-    }
-
     if (!formData.deliveryConfirm) {
       newErrors.deliveryConfirm = 'يرجى تأكيد قيمة التوصيل لإكمال الطلب';
     }
@@ -369,14 +304,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
-
-  // حساب أسعار المواد والملخص فورياً أثناء العرض
-  const priceSummary = calculateOrderTotal(
-    formData.generation,
-    formData.subjects,
-    formData.otherSubject,
-    formData.packagePrice
-  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -420,7 +347,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       const result = await response.json();
 
       if (result.success && result.orderNumber) {
-        onSubmitSuccess(result.orderNumber, result.total || priceSummary.total);
+        onSubmitSuccess(result.orderNumber);
       } else {
         throw new Error(result.message || 'فشل حفظ الطلب، يرجى المحاولة مرة أخرى.');
       }
@@ -654,41 +581,28 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         <div className="options-container" style={{ gap: '8px' }}>
           {SUBJECTS_LIST.map(subject => {
             const isSelected = formData.subjects.includes(subject);
+            const isDisabled = DISABLED_SUBJECTS.includes(subject);
             const { title, details } = parseSubjectName(subject);
             
-            // حساب السعر التلقائي للمادة لعرضه بجانب الاسم
-            let priceText = '';
-            if (formData.generation) {
-              if (formData.generation.includes('2009')) {
-                if (formData.packagePrice) {
-                  const price = getSubjectPrice(formData.generation, subject, formData.packagePrice);
-                  priceText = `${price.toFixed(2)} JD`;
-                } else {
-                  priceText = '2.5 / 3.5 JD';
-                }
-              } else {
-                const price = getSubjectPrice(formData.generation, subject, formData.packagePrice);
-                priceText = `${price.toFixed(2)} JD`;
-              }
-            } else {
-              priceText = 'يُحدد حسب الصف';
-            }
+            // جلب السعر الثابت من جدول الأسعار
+            const priceText = SUBJECT_PRICES[subject] || 'يُحدد لاحقًا';
 
             return (
               <div 
                 key={subject}
-                className={`option-row checkbox ${isSelected ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-                onClick={() => !isSubmitting && handleCheckboxSelect(subject)}
+                className={`option-row checkbox ${isSelected ? 'checked' : ''} ${(isSubmitting || isDisabled) ? 'disabled' : ''}`}
+                onClick={() => !isSubmitting && !isDisabled && handleCheckboxSelect(subject)}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '12px 16px',
                   border: isSelected ? '1px solid var(--google-purple)' : '1px solid var(--border-color)',
-                  backgroundColor: isSelected ? 'var(--google-purple-light)' : '#fff',
+                  backgroundColor: isSelected ? 'var(--google-purple-light)' : (isDisabled ? '#f5f5f5' : '#fff'),
+                  opacity: isDisabled ? 0.65 : 1,
                   borderRadius: '6px',
                   transition: 'all 0.2s',
-                  cursor: 'pointer'
+                  cursor: isDisabled ? 'not-allowed' : 'pointer'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexGrow: 1 }}>
@@ -697,10 +611,13 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     checked={isSelected}
                     onChange={() => {}}
                     className="option-input"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isDisabled}
                   />
                   <div className="option-label" style={{ paddingRight: '28px' }}>
-                    <div style={{ fontWeight: 600, color: 'var(--text-color)' }}>{title}</div>
+                    <div style={{ fontWeight: 600, color: isDisabled ? 'var(--text-muted)' : 'var(--text-color)' }}>
+                      {title}
+                      {isDisabled && <span style={{ marginRight: '8px', fontSize: '0.8rem', color: '#d93025', fontWeight: 700 }}>(انتهى التقديم)</span>}
+                    </div>
                     {details && (
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 400 }}>
                         {details}
@@ -747,42 +664,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         )}
       </div>
 
-      {/* 9. سعر بكج امتحانات المادة الواحدة - يظهر ويطلب فقط في حالة جيل توجيهي 2009 */}
-      {formData.generation.includes('2009') && (
-        <div 
-          ref={cardRefs.packagePrice} 
-          className={`form-card ${errors.packagePrice ? 'error-state' : ''}`}
-        >
-          <span className="question-title required">سعر بكج امتحانات المادة الواحدة</span>
-          <div className="options-container">
-            {['(أبيض وأسود) 2.5 JD', '(ملون) 3.5 JD'].map(option => (
-              <div 
-                key={option} 
-                className={`option-row radio ${formData.packagePrice === option ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-                onClick={() => !isSubmitting && handleRadioSelect('packagePrice', option)}
-              >
-                <input 
-                  type="radio" 
-                  name="packagePrice" 
-                  value={option} 
-                  checked={formData.packagePrice === option} 
-                  onChange={() => {}}
-                  className="option-input"
-                  disabled={isSubmitting}
-                />
-                <span className="option-label">{option}</span>
-              </div>
-            ))}
-          </div>
-          {errors.packagePrice && (
-            <div className="card-error-msg">
-              <AlertCircle size={14} />
-              <span>{errors.packagePrice}</span>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* 10. سعر التوصيل دينار واحد فقط 1JD */}
       <div 
         ref={cardRefs.deliveryConfirm} 
@@ -827,44 +708,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           disabled={isSubmitting}
         />
       </div>
-
-      {/* بطاقة ملخص السعر التلقائي */}
-      {priceSummary.subtotal > 0 && (
-        <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <Receipt size={20} style={{ color: 'var(--google-purple)' }} />
-            <span className="question-title" style={{ margin: 0 }}>ملخص الطلب:</span>
-          </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.95rem' }}>
-            <div style={{ color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.88rem' }}>
-              عدد المواد المختارة: <strong>{formData.subjects.length + (formData.otherSubject.trim() ? 1 : 0)}</strong> مواد
-            </div>
-            
-            {priceSummary.priceItems.map((item, index) => (
-              <div key={index} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
-                <span style={{ color: 'var(--text-color)', fontWeight: 500 }}>{item.name}</span>
-                <span style={{ fontWeight: 700, color: 'var(--google-purple)' }}>{item.price.toFixed(2)} JD</span>
-              </div>
-            ))}
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>مجموع المواد:</span>
-              <span style={{ fontWeight: 700 }}>{priceSummary.subtotal.toFixed(2)} JD</span>
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #ddd', paddingBottom: '8px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>التوصيل:</span>
-              <span style={{ fontWeight: 700 }}>{priceSummary.deliveryFee.toFixed(2)} JD</span>
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800, marginTop: '4px' }}>
-              <span style={{ color: 'var(--text-color)' }}>الإجمالي الكلي:</span>
-              <span style={{ color: 'var(--google-purple)' }}>{priceSummary.total.toFixed(2)} JD</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* تنبيه قبل الإرسال */}
       <div className="warning-box">
