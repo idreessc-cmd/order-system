@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumina Academy - Success</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Shared Style Guidance Mapping -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-fixed-variant": "#5d4201",
+                    "outline": "#74777f",
+                    "primary-fixed": "#d6e3ff",
+                    "primary-fixed-dim": "#adc7f8",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-container": "#44997f",
+                    "surface-tint": "#455f8a",
+                    "inverse-on-surface": "#eaf1ff",
+                    "on-primary-fixed-variant": "#2c4771",
+                    "inverse-surface": "#213145",
+                    "secondary": "#775a19",
+                    "outline-variant": "#c4c6d0",
+                    "on-tertiary-fixed-variant": "#00513f",
+                    "on-primary-container": "#718bb9",
+                    "surface-container-highest": "#d3e4fe",
+                    "on-primary": "#ffffff",
+                    "primary": "#000e24",
+                    "secondary-container": "#fed488",
+                    "tertiary-fixed": "#9ef3d6",
+                    "surface-container-high": "#dce9ff",
+                    "on-error": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "surface": "#f8f9ff",
+                    "primary-container": "#00234b",
+                    "error-container": "#ffdad6",
+                    "on-primary-fixed": "#001b3d",
+                    "on-secondary": "#ffffff",
+                    "surface-variant": "#d3e4fe",
+                    "surface-bright": "#f8f9ff",
+                    "on-surface-variant": "#43474e",
+                    "on-secondary-fixed": "#261900",
+                    "inverse-primary": "#adc7f8",
+                    "secondary-fixed-dim": "#e9c176",
+                    "error": "#ba1a1a",
+                    "on-secondary-container": "#785a1a",
+                    "tertiary": "#00110b",
+                    "surface-container": "#e5eeff",
+                    "tertiary-fixed-dim": "#82d7ba",
+                    "on-background": "#0b1c30",
+                    "on-tertiary-fixed": "#002118",
+                    "surface-container-lowest": "#ffffff",
+                    "background": "#f8f9ff",
+                    "surface-dim": "#cbdbf5",
+                    "secondary-fixed": "#ffdea5",
+                    "tertiary-container": "#00291f",
+                    "surface-container-low": "#eff4ff",
+                    "on-surface": "#0b1c30"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.8rem",
+                    "xl": "1.2rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-md": "24px",
+                    "margin-desktop": "40px",
+                    "margin-mobile": "16px",
+                    "base": "8px",
+                    "stack-sm": "12px",
+                    "container-max": "1200px",
+                    "stack-lg": "48px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "display-lg": ["IBM Plex Sans Arabic"],
+                    "label-sm": ["IBM Plex Sans Arabic"],
+                    "body-lg": ["IBM Plex Sans Arabic"],
+                    "headline-md": ["IBM Plex Sans Arabic"],
+                    "body-md": ["IBM Plex Sans Arabic"],
+                    "headline-sm": ["IBM Plex Sans Arabic"],
+                    "display-lg-mobile": ["IBM Plex Sans Arabic"],
+                    "label-md": ["IBM Plex Sans Arabic"]
+            },
+            "fontSize": {
+                    "display-lg": ["48px", {"lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-md": ["32px", {"lineHeight": "42px", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-sm": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "display-lg-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      body {
+        font-family: 'IBM Plex Sans Arabic', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #f8f9ff;
+      }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .success-gradient-bg {
+        background: radial-gradient(circle at 50% 50%, rgba(130, 215, 186, 0.1) 0%, rgba(248, 249, 255, 0) 70%);
+      }
+      .card-elevation {
+        box-shadow: 0 4px 20px -2px rgba(0, 14, 36, 0.05);
+      }
+      @keyframes check-bounce {
+        0% { transform: scale(0); opacity: 0; }
+        50% { transform: scale(1.1); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      .animate-check {
+        animation: check-bounce 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col">
+<!-- Top Navigation Bar (Shared Component Logic) -->
+<header class="fixed top-0 w-full z-50 bg-surface border-b border-outline-variant shadow-sm h-20">
+<div class="max-w-container-max mx-auto flex justify-between items-center px-margin-desktop h-full">
+<div class="flex items-center gap-base">
+<span class="font-headline-sm text-headline-sm font-bold text-primary">Lumina Academy</span>
+</div>
+<nav class="hidden md:flex items-center gap-stack-lg">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Home</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">About</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Contact</a>
+</nav>
+<div>
+<button class="bg-primary text-on-primary px-6 py-2 rounded-lg font-label-md active:scale-95 transition-transform">Log In</button>
+</div>
+</div>
+</header>
+<!-- Main Content: Success Canvas -->
+<main class="flex-grow flex items-center justify-center pt-32 pb-16 px-margin-mobile md:px-margin-desktop success-gradient-bg">
+<div class="w-full max-w-lg text-center space-y-stack-lg">
+<!-- Success Icon Animation -->
+<div class="flex justify-center">
+<div class="w-24 h-24 rounded-full bg-on-tertiary-container flex items-center justify-center animate-check">
+<span class="material-symbols-outlined text-surface text-5xl" style="font-variation-settings: 'wght' 700;">check</span>
+</div>
+</div>
+<!-- Header Content -->
+<div class="space-y-base">
+<h1 class="font-display-lg-mobile md:font-display-lg text-primary">تم تسجيل طلبكم بنجاح</h1>
+<p class="font-body-lg text-on-surface-variant">تم استلام طلب اشتراك VIP Exam الخاص بك.</p>
+</div>
+<!-- Order Box (Elegant Card) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md card-elevation space-y-stack-sm relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+<span class="material-symbols-outlined text-8xl">verified</span>
+</div>
+<div class="space-y-1">
+<p class="font-label-sm text-outline uppercase tracking-widest">رقم الطلب</p>
+<p class="font-headline-md text-primary font-bold">VIP-100001</p>
+</div>
+<div class="h-px bg-outline-variant w-1/3 mx-auto"></div>
+<p class="font-body-md text-on-surface-variant leading-relaxed">
+                    يرجى الاحتفاظ برقم الطلب للرجوع إليه عند التواصل مع فريق الدعم.
+                </p>
+</div>
+<!-- Actions Container -->
+<div class="flex flex-col gap-stack-sm w-full">
+<!-- Primary WhatsApp Action -->
+<button class="w-full bg-primary text-on-primary py-4 px-stack-md rounded-lg font-headline-sm flex items-center justify-center gap-base shadow-lg hover:shadow-xl active:scale-95 transition-all group">
+<svg class="w-6 h-6 fill-current" viewbox="0 0 24 24">
+<path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.539 2.016 2.126-.54c.947.527 1.912.834 3.166.833 3.181 0 5.768-2.586 5.768-5.766 0-3.18-2.587-5.766-5.772-5.766zm3.385 8.016c-.144.405-.841.741-1.155.787-.314.045-.601.063-1.637-.348-1.037-.41-1.707-1.464-1.759-1.533-.053-.07-.432-.572-.432-1.099 0-.527.278-.787.378-.891.1-.103.218-.129.29-.129.072 0 .144.001.206.002.067.001.157-.025.244.186.087.21.3.731.327.785.027.054.045.117.009.19-.036.072-.054.117-.108.181-.054.063-.113.14-.162.188-.054.053-.11.112-.048.219.062.106.275.451.59.733.406.363.748.476.853.528.106.053.168.045.231-.027.062-.072.271-.314.343-.422.072-.108.144-.09.243-.054.099.036.63.297.738.351.108.054.18.081.206.126.027.045.027.261-.117.666z"></path>
+</svg>
+<span>إرسال رقم الطلب عبر واتساب</span>
+</button>
+<!-- Secondary Grid -->
+<div class="grid grid-cols-2 gap-stack-sm">
+<button class="bg-surface border border-outline text-primary py-3 rounded-lg font-label-md hover:bg-surface-container transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">home</span>
+<span>العودة للرئيسية</span>
+</button>
+<button class="bg-surface border border-outline text-primary py-3 rounded-lg font-label-md hover:bg-surface-container transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">refresh</span>
+<span>تحديث الصفحة</span>
+</button>
+</div>
+</div>
+<!-- Confirmation Imagery Placeholder -->
+<div class="pt-stack-lg">
+<div class="relative w-full aspect-video rounded-xl overflow-hidden grayscale opacity-20 border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A cinematic, high-key shot of a prestigious university library at dawn. Soft sunlight filters through large arched windows, illuminating polished mahogany tables and rows of classic leather-bound books. The composition is clean, airy, and minimal, reflecting an atmosphere of quiet concentration and academic excellence. The palette is dominated by off-whites, warm greys, and deep navy tones, aligning with a professional educational brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAd-AlHKo3L6l4fjhFE6AAxV5Glq_eAhmvhLllHWplvnWrpnYKc6snljqRwzEQLBVDEZt-jMCq93Kv6ew-yJsSTkTSXElAJrWt0S0on4XpF11de1TR0P5ceB2hIwHNOgW2Z5TFIZx6tOuUz3iVMarOB5lSvE9bRgJpxuT73aZIfcY1XAdbMUsudYZPRHW6Ls1_-wG-yMAgtEL241oMbixWHYj864cHAY8yAuVXXsiVdJbb_zZumdLABwFb4Jix3Ky_9xbmwBPfelvnP"/>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer (Shared Component Logic) -->
+<footer class="bg-surface border-t border-outline-variant py-stack-md mt-auto">
+<div class="max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center px-margin-desktop gap-stack-sm">
+<div class="font-headline-sm text-primary text-headline-sm font-bold">Lumina Academy</div>
+<div class="flex gap-stack-md text-on-surface-variant font-label-sm">
+<a class="hover:text-secondary transition-colors" href="#">Privacy Policy</a>
+<a class="hover:text-secondary transition-colors" href="#">Terms of Service</a>
+<a class="hover:text-secondary transition-colors" href="#">Help Center</a>
+</div>
+<div class="text-on-surface-variant font-label-sm">
+                © 2024 Lumina Academy. All rights reserved.
+            </div>
+</div>
+</footer>
+<!-- Interactive Layer -->
+<script>
+        document.querySelectorAll('button').forEach(button => {
+            button.addEventListener('mousedown', () => {
+                button.classList.add('scale-95');
+            });
+            button.addEventListener('mouseup', () => {
+                button.classList.remove('scale-95');
+            });
+            button.addEventListener('mouseleave', () => {</script></body></html>
