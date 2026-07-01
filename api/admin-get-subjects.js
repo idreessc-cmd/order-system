@@ -29,20 +29,20 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: "Method Not Allowed. Only GET is supported." });
   }
 
-  const token = req.headers.authorization || req.headers.Authorization;
-  const adminSecret = process.env.ADMIN_SECRET;
-
-  if (!verifyToken(token, adminSecret)) {
-    return res.status(401).json({ success: false, message: "غير مصرح لك بالدخول. التوكن غير صالح أو منتهي الصلاحية." });
-  }
-
-  const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL;
-  if (!googleScriptUrl) {
-    return res.status(500).json({ success: false, message: "متغير البيئة GOOGLE_SCRIPT_URL غير معرف." });
-  }
-
   try {
-    const googleResponse = await fetch(googleScriptUrl, {
+    const GOOGLE_SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
+    if (!GOOGLE_SCRIPT_URL) {
+      return res.status(500).json({ success: false, message: "GOOGLE_SCRIPT_URL غير موجود في Vercel Environment Variables." });
+    }
+
+    const token = req.headers.authorization || req.headers.Authorization;
+    const adminSecret = process.env.ADMIN_SECRET;
+
+    if (!verifyToken(token, adminSecret)) {
+      return res.status(401).json({ success: false, message: "غير مصرح لك بالدخول. التوكن غير صالح أو منتهي الصلاحية." });
+    }
+
+    const googleResponse = await fetch(GOOGLE_SCRIPT_URL, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
@@ -58,15 +58,16 @@ export default async function handler(req, res) {
     try {
       result = JSON.parse(rawText);
     } catch (parseError) {
-      console.error("Google Apps Script raw response:", rawText.slice(0, 3000));
+      console.error("Google Apps Script non-JSON response:", rawText.slice(0, 3000));
       return res.status(502).json({
         success: false,
-        message: "رد Google Apps Script ليس JSON.",
-        debug: rawText.slice(0, 3000),
+        message: "رد Google Apps Script ليس JSON صالح.",
+        debug: rawText.slice(0, 1000),
       });
     }
 
     if (!googleResponse.ok || !result.success) {
+      console.error("Google Apps Script returned error:", result);
       return res.status(502).json({
         success: false,
         message: result.message || "فشل تنفيذ العملية داخل Google Apps Script.",
@@ -78,6 +79,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Error in admin-get-subjects API:", error);
-    return res.status(500).json({ success: false, message: "فشل الاتصال بخدمة Google Sheets: " + error.message });
+    return res.status(500).json({ success: false, message: "حدث خطأ داخلي في /api/admin-get-subjects.", debug: error.message });
   }
 }
