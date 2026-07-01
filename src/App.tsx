@@ -12,6 +12,7 @@ function App() {
   const [view, setView] = useState<AppView>('home');
   const [orderId, setOrderId] = useState<string>('');
   const [editPhone, setEditPhone] = useState<string>('');
+  const [orderTotal, setOrderTotal] = useState<number>(0);
   const [fetchedOrderData, setFetchedOrderData] = useState<FormState | undefined>(undefined);
 
   // الكشف عن الدخول لصفحة لوحة التحكم /admin عند التحميل
@@ -21,14 +22,16 @@ function App() {
     }
   }, []);
 
-  const handleNewOrderSuccess = (id: string) => {
+  const handleNewOrderSuccess = (id: string, total: number) => {
     setOrderId(id);
+    setOrderTotal(total);
     setView('successNew');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleEditOrderSuccess = (id: string) => {
+  const handleEditOrderSuccess = (id: string, total: number) => {
     setOrderId(id);
+    setOrderTotal(total);
     setView('successEdit');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -44,6 +47,7 @@ function App() {
   const handleGoHome = () => {
     setOrderId('');
     setEditPhone('');
+    setOrderTotal(0);
     setFetchedOrderData(undefined);
     setView('home');
     if (window.location.pathname !== '/') {
@@ -161,6 +165,7 @@ function App() {
       {view === 'successNew' && (
         <SuccessView 
           orderId={orderId} 
+          total={orderTotal}
           isEditMode={false} 
           onGoHome={handleGoHome}
         />
@@ -170,6 +175,7 @@ function App() {
       {view === 'successEdit' && (
         <SuccessView 
           orderId={orderId} 
+          total={orderTotal}
           isEditMode={true} 
           onGoHome={handleGoHome}
         />

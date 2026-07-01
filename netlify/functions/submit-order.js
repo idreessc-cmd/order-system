@@ -11,7 +11,9 @@ function normalizeOrderPayload(payload) {
     otherSubject: String(payload.otherSubject || payload.customSubject || payload.otherSubjects || "").trim(),
     packagePrice: String(payload.packagePrice || payload.packageType || payload.priceOption || "").trim(),
     deliveryConfirm: String(payload.deliveryConfirm || payload.delivery || "تم ✅").trim(),
-    notes: String(payload.notes || payload.comments || "").trim()
+    notes: String(payload.notes || payload.comments || "").trim(),
+    printType: String(payload.printType || "").trim(),
+    modelsCount: String(payload.modelsCount || "").trim()
   };
 }
 

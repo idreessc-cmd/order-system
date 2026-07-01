@@ -1,5 +1,101 @@
 // Google Apps Script for Tawjihi Exam Order System (Netlify & CORS Safe)
-// Version 4.0.0 - Adds Dynamic Subjects Management (Subjects Sheet)
+// Version 4.1.0 - Implements Dynamic Pricing Matrix & Expanded Order Columns
+
+var PRICING_TABLE = {
+  "2009": {
+    black_white: {
+      2: { 4: 3.5 },
+      4: { 4: 5.5 },
+      6: { 4: 7.5 },
+      8: { 1: 3.5, 2: 5.5, 3: 7.5, 4: 8.5 },
+      10: { 4: 9.5 }
+    },
+    color: {
+      2: { 4: 4.5 },
+      4: { 4: 7 },
+      6: { 4: 9.5 },
+      8: { 1: 4.5, 2: 7, 3: 9.5, 4: 11 },
+      10: { 4: 13 }
+    }
+  },
+  "BTEC": {
+    black_white: {
+      2: { 3: 3.5 },
+      4: { 3: 5 },
+      6: { 3: 6 },
+      8: { 1: 3.5, 3: 7 }
+    },
+    color: {
+      2: { 3: 4.5 },
+      4: { 3: 6.5 },
+      6: { 3: 8 },
+      8: { 1: 4.5, 3: 9.5 }
+    }
+  },
+  "2008": {
+    black_white: {
+      4: { 1: 2.5 },
+      8: { 1: 4 },
+      10: { 1: 5 }
+    },
+    color: {
+      4: { 1: 3.5 },
+      8: { 1: 5.5 },
+      10: { 1: 7 }
+    }
+  }
+};
+
+function calculatePricing(generation, subjectsCount, printType, modelsCount) {
+  if (!generation || subjectsCount <= 0 || !printType || !modelsCount) {
+    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0 };
+  }
+  
+  var genKey = generation.indexOf("2009") !== -1 ? "2009" : (generation.indexOf("BTEC") !== -1 || generation.indexOf("بيتيك") !== -1 ? "BTEC" : "2008");
+  
+  var printTypeTable = PRICING_TABLE[genKey] ? PRICING_TABLE[genKey][printType] : null;
+  if (!printTypeTable) {
+    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0 };
+  }
+  
+  var modelsTable = printTypeTable[modelsCount];
+  if (!modelsTable) {
+    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0 };
+  }
+  
+  var materialsPrice = 0;
+  var available = false;
+  
+  if (genKey === "2008") {
+    // 2008 special pricing: price is per subject, multiply by subjectsCount
+    var pricePerSubject = modelsTable[1];
+    if (pricePerSubject !== undefined) {
+      materialsPrice = pricePerSubject * subjectsCount;
+      available = true;
+    }
+  } else {
+    // 2009 and BTEC: lookup exact subjectsCount
+    var price = modelsTable[subjectsCount];
+    if (price !== undefined) {
+      materialsPrice = price;
+      available = true;
+    }
+  }
+  
+  if (!available) {
+    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0 };
+  }
+  
+  var deliveryFee = 1.0;
+  var total = materialsPrice + deliveryFee;
+  
+  return {
+    available: true,
+    materialsPrice: materialsPrice,
+    deliveryFee: deliveryFee,
+    total: total
+  };
+}
 
 function doPost(e) {
   try {
@@ -8,7 +104,6 @@ function doPost(e) {
     
     var response;
     
-    // Public operations
     if (action === "submitOrder") {
       response = submitOrder(payload.data || payload);
     } else if (action === "findOrder") {
@@ -17,9 +112,7 @@ function doPost(e) {
       response = updateOrder(payload);
     } else if (action === "getSubjects") {
       response = getSubjects();
-    } 
-    // Admin operations (auth tokens are validated in Netlify Functions before calling this script)
-    else if (action === "adminGetSubjects") {
+    } else if (action === "adminGetSubjects") {
       response = adminGetSubjects();
     } else if (action === "adminSaveSubject") {
       response = adminSaveSubject(payload.subject);
@@ -44,7 +137,6 @@ function doPost(e) {
   }
 }
 
-// دالة لضمان وجود الجداول وإنشائها بالبيانات الأولية عند الحاجة
 function getOrCreateSubjectsSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("Subjects");
@@ -55,34 +147,33 @@ function getOrCreateSubjectsSheet() {
     
     var initialSubjects = [
       // 2009
-      ["arabic-2009", "امتحانات لغة عربية 2009", 2.5, "", "2009", "active", 1, new Date(), new Date()],
-      ["english-2009", "امتحانات إنجليزي 2009", 2.5, "", "2009", "active", 2, new Date(), new Date()],
-      ["jordan-history-2009", "امتحانات تاريخ الأردن 2009", 2.5, "", "2009", "active", 3, new Date(), new Date()],
-      ["islamic-2009", "امتحانات تربية إسلامية 2009", 2.5, "", "2009", "active", 4, new Date(), new Date()],
+      ["arabic-2009", "امتحانات لغة عربية", 2.5, "", "2009", "active", 1, new Date(), new Date()],
+      ["english-2009", "امتحانات إنجليزي", 2.5, "", "2009", "active", 2, new Date(), new Date()],
+      ["jordan-history-2009", "امتحانات تاريخ الأردن", 2.5, "", "2009", "active", 3, new Date(), new Date()],
+      ["islamic-2009", "امتحانات تربية إسلامية", 2.5, "", "2009", "active", 4, new Date(), new Date()],
       
       // 2008
-      ["math-advanced-2008", "امتحانات رياضيات هندسي", 4.5, "التوصيل يوم الأربعاء 1/7", "2008", "active", 5, new Date(), new Date()],
-      ["financial-2008", "امتحانات ثقافة مالية", 4.0, "التوصيل يوم الجمعة 3/7", "2008", "active", 6, new Date(), new Date()],
-      ["english-advanced-2008", "امتحانات إنجليزي متقدم 2008", 4.0, "التوصيل يوم الأحد 5/7", "2008", "active", 7, new Date(), new Date()],
-      ["physics-2008", "امتحانات فيزياء", 4.0, "التوصيل يوم الثلاثاء 7/7", "2008", "active", 8, new Date(), new Date()],
-      ["chemistry-2008", "امتحانات كيمياء", 4.5, "التوصيل يوم الجمعة 10/7", "2008", "active", 9, new Date(), new Date()],
-      ["history-2008", "امتحانات تاريخ 2008", 3.5, "التوصيل يوم الجمعة 10/7", "2008", "active", 10, new Date(), new Date()],
-      ["earth-science-2008", "امتحانات علوم الأرض", 3.5, "التوصيل يوم الإثنين 13/7", "2008", "active", 11, new Date(), new Date()],
-      ["philosophy-2008", "امتحانات فلسفة", 4.5, "التوصيل يوم الإثنين 13/7", "2008", "active", 12, new Date(), new Date()],
-      ["arabic-2008", "امتحانات لغة عربية 2008", 4.0, "التوصيل يوم الأربعاء 15/7", "2008", "active", 13, new Date(), new Date()],
-      ["biology-2008", "امتحانات علوم حياتية", 4.5, "التوصيل يوم الجمعة 17/7", "2008", "active", 14, new Date(), new Date()],
+      ["financial-2008", "ثقافة مالية", 4.0, "التوصيل يوم الخميس 2/7", "2008", "active", 5, new Date(), new Date()],
+      ["english-advanced-2008", "إنجليزي متقدم 2008", 4.0, "التوصيل يوم الأحد 5/7", "2008", "active", 6, new Date(), new Date()],
+      ["physics-2008", "فيزياء", 4.0, "التوصيل يوم الثلاثاء 7/7", "2008", "active", 7, new Date(), new Date()],
+      ["chemistry-2008", "كيمياء", 4.5, "التوصيل يوم الخميس 9/7", "2008", "active", 8, new Date(), new Date()],
+      ["history-2008", "تاريخ 2008", 3.5, "التوصيل يوم الخميس 9/7", "2008", "active", 9, new Date(), new Date()],
+      ["earth-science-2008", "علوم الأرض", 3.5, "التوصيل يوم الإثنين 13/7", "2008", "active", 10, new Date(), new Date()],
+      ["philosophy-2008", "فلسفة", 4.5, "التوصيل يوم الإثنين 13/7", "2008", "active", 11, new Date(), new Date()],
+      ["arabic-2008", "لغة عربية 2008", 4.0, "التوصيل يوم الأربعاء 15/7", "2008", "active", 12, new Date(), new Date()],
+      ["biology-2008", "علوم حياتية", 4.5, "التوصيل يوم الخميس 16/7", "2008", "active", 13, new Date(), new Date()],
       
       // BTEC
-      ["english-btec", "امتحانات إنجليزي بيتيك", 3.5, "التوصيل يوم الأحد 5/7", "BTEC", "active", 15, new Date(), new Date()],
-      ["arabic-btec", "امتحانات لغة عربية بيتيك", 3.5, "التوصيل يوم الثلاثاء 7/7", "BTEC", "active", 16, new Date(), new Date()],
-      ["jordan-history-btec", "امتحانات تاريخ الأردن بيتيك", 3.5, "التوصيل يوم الأربعاء 15/7", "BTEC", "active", 17, new Date(), new Date()],
-      ["islamic-btec", "امتحانات تربية إسلامية بيتيك", 3.5, "التوصيل يوم الجمعة 17/7", "BTEC", "active", 18, new Date(), new Date()],
+      ["english-btec", "إنجليزي", 3.5, "التوصيل يوم الأحد 5/7", "BTEC", "active", 14, new Date(), new Date()],
+      ["arabic-btec", "لغة عربية", 3.5, "التوصيل يوم الثلاثاء 7/7", "BTEC", "active", 15, new Date(), new Date()],
+      ["jordan-history-btec", "تاريخ الأردن", 3.5, "التوصيل يوم الأربعاء 15/7", "BTEC", "active", 16, new Date(), new Date()],
+      ["islamic-btec", "تربية إسلامية", 3.5, "التوصيل يوم الجمعة 17/7", "BTEC", "active", 17, new Date(), new Date()],
       
       // Closed
-      ["islamic-special-2008", "امتحانات تربية إسلامية تخصص 2008", "", "انتهى موعد التقديم", "closed", "disabled", 19, new Date(), new Date()],
-      ["geography", "امتحانات جغرافيا", "", "سيتم توفيرها داخل قروباتنا", "closed", "disabled", 20, new Date(), new Date()],
-      ["business-math", "امتحانات رياضيات أعمال", "", "انتهى موعد التقديم", "closed", "disabled", 21, new Date(), new Date()],
-      ["psychology", "امتحانات علم النفس والاجتماع", "", "انتهى موعد التقديم", "closed", "disabled", 22, new Date(), new Date()]
+      ["islamic-special-2008", "التربية الاسلامية تخصص", "", "انتهى موعد التقديم", "closed", "disabled", 18, new Date(), new Date()],
+      ["geography", "الجغرافيا", "", "سيتم توفيرها داخل قروباتنا", "closed", "disabled", 19, new Date(), new Date()],
+      ["business-math", "رياضيات الاعمال", "", "انتهى موعد التقديم", "closed", "disabled", 20, new Date(), new Date()],
+      ["psychology", "علوم النفس والاجتماع", "", "انتهى موعد التقديم", "closed", "disabled", 21, new Date(), new Date()]
     ];
     
     for (var i = 0; i < initialSubjects.length; i++) {
@@ -92,7 +183,6 @@ function getOrCreateSubjectsSheet() {
   return sheet;
 }
 
-// 1. جلب المواد للطلاب (نشطة أو معطلة فقط - غير المخفية)
 function getSubjects() {
   try {
     var sheet = getOrCreateSubjectsSheet();
@@ -106,7 +196,6 @@ function getSubjects() {
       var row = values[i];
       var status = row[5].toString().trim();
       
-      // لا ترجع المواد المخفية (hidden) للطلاب
       if (status !== "hidden") {
         subjects.push({
           id: row[0].toString(),
@@ -120,7 +209,6 @@ function getSubjects() {
       }
     }
     
-    // ترتيب ظهور المواد حسب الفئة والترتيب الرقمي
     subjects.sort(function(a, b) {
       var catOrder = { "2009": 1, "2008": 2, "BTEC": 3, "closed": 4 };
       var orderA = catOrder[a.category] || 99;
@@ -136,7 +224,6 @@ function getSubjects() {
   }
 }
 
-// 2. جلب جميع المواد للوحة التحكم (بما فيها المخفية)
 function adminGetSubjects() {
   try {
     var sheet = getOrCreateSubjectsSheet();
@@ -161,7 +248,6 @@ function adminGetSubjects() {
       });
     }
     
-    // ترتيب ظهور المواد للادمن
     subjects.sort(function(a, b) {
       var catOrder = { "2009": 1, "2008": 2, "BTEC": 3, "closed": 4 };
       var orderA = catOrder[a.category] || 99;
@@ -177,7 +263,6 @@ function adminGetSubjects() {
   }
 }
 
-// 3. إضافة أو تعديل مادة من لوحة التحكم
 function adminSaveSubject(sub) {
   var lock = LockService.getScriptLock();
   try {
@@ -191,7 +276,6 @@ function adminSaveSubject(sub) {
     var lastRow = sheet.getLastRow();
     var subId = sub.id ? sub.id.toString().trim() : "";
     
-    // توليد معرف تلقائي في حال عدم وجوده
     if (!subId) {
       subId = "sub-" + Math.random().toString(36).substring(2, 9) + "-" + new Date().getTime();
     }
@@ -210,16 +294,14 @@ function adminSaveSubject(sub) {
     var priceVal = sub.price !== "" && sub.price !== null && sub.price !== undefined ? parseFloat(sub.price) : "";
     
     if (rowIndex !== -1) {
-      // تعديل مادة موجودة
       sheet.getRange(rowIndex, 2).setValue(sub.name.toString());
       sheet.getRange(rowIndex, 3).setValue(priceVal);
       sheet.getRange(rowIndex, 4).setValue(sub.description ? sub.description.toString() : "");
       sheet.getRange(rowIndex, 5).setValue(sub.category.toString());
       sheet.getRange(rowIndex, 6).setValue(sub.status.toString());
       sheet.getRange(rowIndex, 7).setValue(parseInt(sub.sortOrder, 10) || 99);
-      sheet.getRange(rowIndex, 9).setValue(now); // updatedAt
+      sheet.getRange(rowIndex, 9).setValue(now);
     } else {
-      // إضافة مادة جديدة
       sheet.appendRow([
         subId,
         sub.name.toString(),
@@ -228,8 +310,8 @@ function adminSaveSubject(sub) {
         sub.category.toString(),
         sub.status.toString(),
         parseInt(sub.sortOrder, 10) || 99,
-        now, // createdAt
-        now  // updatedAt
+        now,
+        now
       ]);
     }
     
@@ -241,7 +323,6 @@ function adminSaveSubject(sub) {
   }
 }
 
-// 4. حذف مادة (سوفت دليت - تغيير الحالة لـ hidden)
 function adminDeleteSubject(id) {
   var lock = LockService.getScriptLock();
   try {
@@ -269,9 +350,8 @@ function adminDeleteSubject(id) {
       return { success: false, message: "المادة غير موجودة." };
     }
     
-    // تغيير الحالة إلى مخفي بدلاً من حذف الصف
     sheet.getRange(rowIndex, 6).setValue("hidden");
-    sheet.getRange(rowIndex, 9).setValue(new Date()); // updatedAt
+    sheet.getRange(rowIndex, 9).setValue(new Date());
     
     return { success: true, message: "تم إخفاء المادة بنجاح." };
   } catch (error) {
@@ -294,16 +374,21 @@ function submitOrder(data) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Orders");
     
+    var headers = [
+      "التاريخ والوقت", "رقم الطلب", "الاسم الكامل", "الصف / الجيل", 
+      "المحافظة", "المنطقة / العنوان التفصيلي", "رقم موبايل للتواصل", 
+      "رقم واتساب للتواصل", "رقم هاتف آخر", "المواد المطلوبة", 
+      "مواد أخرى", "سعر بكج المادة", "تأكيد سعر التوصيل", "ملاحظات أخرى",
+      "نوع الطباعة", "عدد النماذج لكل مادة", "سعر المواد", "سعر التوصيل", "الإجمالي الكلي", // حقول تسعير جديدة
+      "الحالة", "آخر تعديل", "عدد مرات التعديل"
+    ];
+
     if (!sheet) {
       sheet = ss.insertSheet("Orders");
-      var headers = [
-        "التاريخ والوقت", "رقم الطلب", "الاسم الكامل", "الصف / الجيل", 
-        "المحافظة", "المنطقة / العنوان التفصيلي", "رقم موبايل للتواصل", 
-        "رقم واتساب للتواصل", "رقم هاتف آخر", "المواد المطلوبة", 
-        "مواد أخرى", "سعر بكج المادة", "تأكيد سعر التوصيل", 
-        "ملاحظات أخرى", "الحالة", "آخر تعديل", "عدد مرات التعديل"
-      ];
       sheet.appendRow(headers);
+    } else if (sheet.getLastColumn() < 22) {
+      // ترقية وتوسيع الشيت الحالي إلى 22 عموداً
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
     
     formatPhoneColumnsAsText(sheet);
@@ -331,6 +416,15 @@ function submitOrder(data) {
     
     var timestamp = new Date();
     var subjectsStr = Array.isArray(data.subjects) ? data.subjects.join(", ") : "";
+    var subjectsCount = Array.isArray(data.subjects) ? data.subjects.length : 0;
+    
+    // حساب التسعير من السيرفر لضمان الأمان
+    var pricing = calculatePricing(
+      toText(data.generation),
+      subjectsCount,
+      toText(data.printType),
+      parseInt(data.modelsCount, 10) || 0
+    );
     
     var rowData = [
       timestamp,
@@ -344,9 +438,14 @@ function submitOrder(data) {
       phoneAsText(data.otherPhone),
       subjectsStr,
       toText(data.otherSubject),
-      toText(data.packagePrice),
+      toText(data.packagePrice), // فارغ في النظام الجديد
       toText(data.deliveryConfirm),
       toText(data.notes),
+      toText(data.printType),       // نوع الطباعة
+      toText(data.modelsCount),     // عدد النماذج
+      pricing.materialsPrice,       // سعر المواد
+      pricing.deliveryFee,          // سعر التوصيل
+      pricing.total,                // الإجمالي الكلي
       "جديد",
       "",
       0
@@ -356,7 +455,8 @@ function submitOrder(data) {
     
     return {
       success: true,
-      orderNumber: orderId
+      orderNumber: orderId,
+      total: pricing.total // إرجاع الإجمالي للواجهة
     };
     
   } catch (error) {
@@ -385,7 +485,8 @@ function findOrder(data) {
     var orderNumber = data.orderNumber.toString().trim().toUpperCase();
     var phoneInput = normalizePhone(data.phone);
     
-    var range = sheet.getRange(2, 1, lastRow - 1, 17);
+    var cols = sheet.getLastColumn();
+    var range = sheet.getRange(2, 1, lastRow - 1, cols);
     var values = range.getValues();
     
     for (var i = 0; i < values.length; i++) {
@@ -412,7 +513,9 @@ function findOrder(data) {
               otherSubject: toText(row[10]),
               packagePrice: toText(row[11]),
               deliveryConfirm: toText(row[12]),
-              notes: toText(row[13])
+              notes: toText(row[13]),
+              printType: cols >= 15 ? toText(row[14]) : "",       // جلب نوع الطباعة
+              modelsCount: cols >= 16 ? toText(row[15]) : ""       // جلب عدد النماذج
             }
           };
         }
@@ -456,7 +559,20 @@ function updateOrder(payload) {
     var phoneInput = normalizePhone(payload.phone);
     var data = payload.data || {};
     
-    var range = sheet.getRange(2, 1, lastRow - 1, 17);
+    var headers = [
+      "التاريخ والوقت", "رقم الطلب", "الاسم الكامل", "الصف / الجيل", 
+      "المحافظة", "المنطقة / العنوان التفصيلي", "رقم موبايل للتواصل", 
+      "رقم واتساب للتواصل", "رقم هاتف آخر", "المواد المطلوبة", 
+      "مواد أخرى", "سعر بكج المادة", "تأكيد سعر التوصيل", "ملاحظات أخرى",
+      "نوع الطباعة", "عدد النماذج لكل مادة", "سعر المواد", "سعر التوصيل", "الإجمالي الكلي",
+      "الحالة", "آخر تعديل", "عدد مرات التعديل"
+    ];
+
+    if (sheet.getLastColumn() < 22) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+    
+    var range = sheet.getRange(2, 1, lastRow - 1, 22);
     var values = range.getValues();
     var rowIndex = -1;
     var currentEditCount = 0;
@@ -472,7 +588,7 @@ function updateOrder(payload) {
         
         if (phoneInput === rowPhone || phoneInput === rowWhatsapp || phoneInput === rowAltPhone) {
           rowIndex = i + 2; 
-          currentEditCount = parseInt(row[16], 10) || 0;
+          currentEditCount = parseInt(row[21], 10) || 0; // index 21 is Column 22
           break;
         }
       }
@@ -489,7 +605,17 @@ function updateOrder(payload) {
     
     var timestamp = new Date();
     var subjectsStr = Array.isArray(data.subjects) ? data.subjects.join(", ") : "";
+    var subjectsCount = Array.isArray(data.subjects) ? data.subjects.length : 0;
     
+    // حساب التسعير المحدث من السيرفر
+    var pricing = calculatePricing(
+      toText(data.generation),
+      subjectsCount,
+      toText(data.printType),
+      parseInt(data.modelsCount, 10) || 0
+    );
+    
+    // تعديل بيانات الطلب في الجدول
     sheet.getRange(rowIndex, 3).setValue(toText(data.fullName));
     sheet.getRange(rowIndex, 4).setValue(toText(data.generation));
     sheet.getRange(rowIndex, 5).setValue(toText(data.governorate));
@@ -502,13 +628,23 @@ function updateOrder(payload) {
     sheet.getRange(rowIndex, 12).setValue(toText(data.packagePrice));
     sheet.getRange(rowIndex, 13).setValue(toText(data.deliveryConfirm));
     sheet.getRange(rowIndex, 14).setValue(toText(data.notes));
-    sheet.getRange(rowIndex, 15).setValue("تم التعديل");
-    sheet.getRange(rowIndex, 16).setValue(timestamp);
-    sheet.getRange(rowIndex, 17).setValue(currentEditCount + 1);
+    
+    // حقول التسعير الجديدة (أعمدة 15، 16، 17، 18، 19)
+    sheet.getRange(rowIndex, 15).setValue(toText(data.printType));
+    sheet.getRange(rowIndex, 16).setValue(toText(data.modelsCount));
+    sheet.getRange(rowIndex, 17).setValue(pricing.materialsPrice);
+    sheet.getRange(rowIndex, 18).setValue(pricing.deliveryFee);
+    sheet.getRange(rowIndex, 19).setValue(pricing.total);
+    
+    // الحالة وإحصاءات التعديل
+    sheet.getRange(rowIndex, 20).setValue("تم التعديل");
+    sheet.getRange(rowIndex, 21).setValue(timestamp);
+    sheet.getRange(rowIndex, 22).setValue(currentEditCount + 1);
     
     return {
       success: true,
       orderNumber: orderNumber,
+      total: pricing.total, // إرجاع الإجمالي المحدث للواجهة
       message: "تم تعديل طلبكم بنجاح"
     };
     
@@ -520,27 +656,23 @@ function updateOrder(payload) {
   }
 }
 
-// دالة تنسيق أعمدة الهواتف كأعمدة نصية
 function formatPhoneColumnsAsText(sheet) {
   sheet.getRange("G:G").setNumberFormat("@");
   sheet.getRange("H:H").setNumberFormat("@");
   sheet.getRange("I:I").setNumberFormat("@");
 }
 
-// دالة للتأكد من حفظ الهاتف كنص
 function phoneAsText(value) {
   if (value === null || value === undefined) return "";
   var text = value.toString().trim().replace(/^'/, "");
   return text ? "'" + text : "";
 }
 
-// دالة تحويل أي قيمة لنص نظيف
 function toText(value) {
   if (value === null || value === undefined) return "";
   return String(value).replace(/^'/, "").trim();
 }
 
-// دالة توحيد أرقام الهاتف للبحث والمطابقة
 function normalizePhone(phone) {
   if (!phone) return "";
   var digits = phone.toString().replace(/\D/g, '');

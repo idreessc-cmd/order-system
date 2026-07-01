@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Receipt } from 'lucide-react';
 
 interface OrderFormProps {
-  onSubmitSuccess: (orderId: string) => void;
+  onSubmitSuccess: (orderId: string, total: number) => void;
   onBack: () => void;
   initialData?: FormState;
   orderNumber?: string;
@@ -20,9 +20,11 @@ export interface FormState {
   otherPhone: string;
   subjects: string[];
   otherSubject: string;
-  packagePrice: string; // محتفظ بها كحقل فارغ لتوافق البنية
+  packagePrice: string; // محتفظ بها لتوافق البنية
   deliveryConfirm: string; // "تم ✅" or ""
   notes: string;
+  printType: string;
+  modelsCount: string;
 }
 
 interface Subject {
@@ -50,30 +52,54 @@ const GOVERNORATES = [
   'العقبة'
 ];
 
+export const PRICING_TABLE: Record<string, Record<string, Record<number, Record<number, number>>>> = {
+  "2009": {
+    black_white: {
+      2: { 4: 3.5 },
+      4: { 4: 5.5 },
+      6: { 4: 7.5 },
+      8: { 1: 3.5, 2: 5.5, 3: 7.5, 4: 8.5 },
+      10: { 4: 9.5 }
+    },
+    color: {
+      2: { 4: 4.5 },
+      4: { 4: 7 },
+      6: { 4: 9.5 },
+      8: { 1: 4.5, 2: 7, 3: 9.5, 4: 11 },
+      10: { 4: 13 }
+    }
+  },
+  "BTEC": {
+    black_white: {
+      2: { 3: 3.5 },
+      4: { 3: 5 },
+      6: { 3: 6 },
+      8: { 1: 3.5, 3: 7 }
+    },
+    color: {
+      2: { 3: 4.5 },
+      4: { 3: 6.5 },
+      6: { 3: 8 },
+      8: { 1: 4.5, 3: 9.5 }
+    }
+  },
+  "2008": {
+    black_white: {
+      4: { 1: 2.5 },
+      8: { 1: 4 },
+      10: { 1: 5 }
+    },
+    color: {
+      4: { 1: 3.5 },
+      8: { 1: 5.5 },
+      10: { 1: 7 }
+    }
+  }
+};
+
 const safeText = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
-};
-
-const formatPrice = (price: unknown): string => {
-  if (price === null || price === undefined) return "";
-
-  const cleaned = String(price)
-    .replace("JD", "")
-    .replace("دينار", "")
-    .trim();
-
-  if (!cleaned) return "";
-
-  const numericPrice = Number(cleaned);
-
-  if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
-    return "";
-  }
-
-  return Number.isInteger(numericPrice)
-    ? `${numericPrice} JD`
-    : `${numericPrice.toFixed(2).replace(/\.?0+$/, "")} JD`;
 };
 
 const normalizeSubject = (subject: any): Subject => ({
@@ -101,6 +127,127 @@ const parseSubjectName = (subject: string) => {
   };
 };
 
+// دالة تصفية المواد حسب الجيل المختار للطلاب
+const filterSubjectsByGeneration = (list: Subject[], gen: string): Subject[] => {
+  if (!gen) return [];
+  
+  return list.filter(sub => {
+    const name = sub.name.toLowerCase();
+    const cat = sub.category.toLowerCase();
+    
+    if (gen.includes('2009')) {
+      return cat.includes('2009') || name.includes('2009') || 
+             sub.id === 'geography' || sub.id === 'psychology';
+    }
+    if (gen.includes('BTEC') || gen.includes('بيتيك')) {
+      return cat.includes('btec') || name.includes('btec') || name.includes('بيتيك') ||
+             sub.id === 'business-math';
+    }
+    if (gen.includes('2008')) {
+      return cat.includes('2008') || name.includes('2008') ||
+             sub.id === 'islamic-special-2008';
+    }
+    return false;
+  });
+};
+
+export const getAvailableModelsCounts = (
+  generation: string,
+  subjectsCount: number,
+  printType: string
+): number[] => {
+  if (!generation || subjectsCount <= 0 || !printType) return [];
+  const genKey = generation.includes('2009') ? '2009' : (generation.includes('BTEC') || generation.includes('بيتيك') ? 'BTEC' : '2008');
+  const printTypeTable = PRICING_TABLE[genKey]?.[printType];
+  if (!printTypeTable) return [];
+  
+  return Object.keys(printTypeTable)
+    .map(Number)
+    .filter(modelsCount => {
+      const modelsTable = printTypeTable[modelsCount];
+      if (!modelsTable) return false;
+      if (genKey === '2008') {
+        return modelsTable[1] !== undefined;
+      } else {
+        return modelsTable[subjectsCount] !== undefined;
+      }
+    });
+};
+
+interface PricingResult {
+  available: boolean;
+  materialsPrice: number;
+  deliveryFee: number;
+  total: number;
+  message: string;
+}
+
+export const calculatePricing = ({
+  generation,
+  subjectsCount,
+  printType,
+  modelsCount
+}: {
+  generation: string;
+  subjectsCount: number;
+  printType: string;
+  modelsCount: number;
+}): PricingResult => {
+  if (!generation || subjectsCount <= 0 || !printType || !modelsCount) {
+    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0, message: "يرجى اختيار المواد ونوع الطباعة وعدد النماذج." };
+  }
+  
+  const genKey = generation.includes('2009') ? '2009' : (generation.includes('BTEC') || generation.includes('بيتيك') ? 'BTEC' : '2008');
+  
+  const printTypeTable = PRICING_TABLE[genKey]?.[printType];
+  if (!printTypeTable) {
+    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0, message: "خيارات الطباعة غير متوفرة." };
+  }
+  
+  const modelsTable = printTypeTable[modelsCount];
+  if (!modelsTable) {
+    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0, message: "هذا العرض غير متوفر لهذا الجيل." };
+  }
+  
+  let materialsPrice = 0;
+  let available = false;
+  
+  if (genKey === '2008') {
+    const pricePerSubject = modelsTable[1];
+    if (pricePerSubject !== undefined) {
+      materialsPrice = pricePerSubject * subjectsCount;
+      available = true;
+    }
+  } else {
+    const price = modelsTable[subjectsCount];
+    if (price !== undefined) {
+      materialsPrice = price;
+      available = true;
+    }
+  }
+  
+  if (!available) {
+    return {
+      available: false,
+      materialsPrice: 0,
+      deliveryFee: 0,
+      total: 0,
+      message: "لا يوجد عرض متاح لهذا العدد من المواد، يرجى اختيار عدد مواد مختلف."
+    };
+  }
+  
+  const deliveryFee = 1.0;
+  const total = materialsPrice + deliveryFee;
+  
+  return {
+    available: true,
+    materialsPrice,
+    deliveryFee,
+    total,
+    message: ""
+  };
+};
+
 export const OrderForm: React.FC<OrderFormProps> = ({ 
   onSubmitSuccess, 
   onBack,
@@ -119,19 +266,21 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     otherPhone: '',
     subjects: [],
     otherSubject: '',
-    packagePrice: '', // محتفظ بها كحقل فارغ لتوافق البنية
+    packagePrice: '',
     deliveryConfirm: '',
-    notes: ''
+    notes: '',
+    printType: 'black_white', // القيمة الافتراضية
+    modelsCount: ''
   });
 
-  const [subjectsList, setSubjectsList] = useState<Subject[]>([]);
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [subjectsError, setSubjectsError] = useState('');
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'api' | 'subjectsList', string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // جلب المواد ديناميكياً من السحابة عند تحميل النموذج
+  // جلب المواد من السيرفر عند التحميل
   useEffect(() => {
     const loadSubjects = async () => {
       try {
@@ -140,7 +289,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         
         if (response.ok && result.success) {
           const normalized = (result.subjects || []).map(normalizeSubject);
-          setSubjectsList(normalized);
+          setAllSubjects(normalized);
         } else {
           setSubjectsError(result.message || 'تعذر تحميل المواد، يرجى تحديث الصفحة أو المحاولة لاحقًا.');
         }
@@ -153,7 +302,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     loadSubjects();
   }, []);
 
-  // Initialize form data securely if in edit mode
+  // تهيئة البيانات عند التعديل
   useEffect(() => {
     if (isEditMode && initialData) {
       setFormData({
@@ -168,12 +317,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         otherSubject: safeText(initialData.otherSubject),
         packagePrice: '',
         deliveryConfirm: safeText(initialData.deliveryConfirm),
-        notes: safeText(initialData.notes)
+        notes: safeText(initialData.notes),
+        printType: safeText(initialData.printType) || 'black_white',
+        modelsCount: safeText(initialData.modelsCount)
       });
     }
   }, [isEditMode, initialData]);
 
-  // Refs for scrolling to the first error card
+  // Refs للتحرك للأخطاء
   const cardRefs = {
     fullName: useRef<HTMLDivElement>(null),
     generation: useRef<HTMLDivElement>(null),
@@ -194,9 +345,34 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   };
 
-  const handleRadioSelect = (name: 'generation' | 'governorate' | 'deliveryConfirm', value: string) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
+  const handleRadioSelect = (name: 'generation' | 'governorate' | 'deliveryConfirm' | 'printType' | 'modelsCount', value: string) => {
+    if (name === 'generation') {
+      // تفريغ المواد والخيارات والأسعار عند تغيير الجيل
+      setFormData(prev => ({
+        ...prev,
+        generation: value,
+        subjects: [],
+        printType: 'black_white',
+        modelsCount: ''
+      }));
+    } else if (name === 'printType') {
+      setFormData(prev => {
+        const availableCounts = getAvailableModelsCounts(prev.generation, prev.subjects.length, value);
+        let nextModelsCount = prev.modelsCount;
+        if (nextModelsCount && !availableCounts.includes(Number(nextModelsCount))) {
+          nextModelsCount = '';
+        }
+        return {
+          ...prev,
+          printType: value,
+          modelsCount: nextModelsCount
+        };
+      });
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+    
+    if (errors[name as keyof FormState]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
     }
   };
@@ -210,7 +386,19 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       } else {
         newSubjects = [...prev.subjects, subjectName];
       }
-      return { ...prev, subjects: newSubjects };
+
+      // تصفية عدد النماذج المتوفرة للعدد الجديد من المواد
+      const availableCounts = getAvailableModelsCounts(prev.generation, newSubjects.length, prev.printType);
+      let nextModelsCount = prev.modelsCount;
+      if (nextModelsCount && !availableCounts.includes(Number(nextModelsCount))) {
+        nextModelsCount = '';
+      }
+
+      return {
+        ...prev,
+        subjects: newSubjects,
+        modelsCount: nextModelsCount
+      };
     });
 
     if (errors.subjectsList) {
@@ -237,7 +425,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       newErrors.address = 'هذا السؤال مطلوب إجباريًا';
     }
 
-    // Phone number validation: 10 digits starting with 077, 078, 079
     const phoneRegex = /^07[789]\d{7}$/;
     const cleanedMobile = safeText(formData.mobilePhone);
     const cleanedWhatsapp = safeText(formData.whatsappPhone);
@@ -259,9 +446,17 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       newErrors.otherPhone = 'هذا السؤال مطلوب إجباريًا';
     }
 
-    // Must select at least one subject or fill other subjects
     if (formData.subjects.length === 0 && !safeText(formData.otherSubject)) {
       newErrors.subjectsList = 'يرجى اختيار مادة واحدة على الأقل أو كتابة مواد أخرى في الحقل المخصص';
+    }
+
+    if (formData.subjects.length > 0) {
+      if (!formData.printType) {
+        newErrors.printType = 'يرجى اختيار نوع الطباعة';
+      }
+      if (!formData.modelsCount) {
+        newErrors.modelsCount = 'يرجى اختيار عدد النماذج المطلوبة';
+      }
     }
 
     if (!formData.deliveryConfirm) {
@@ -270,7 +465,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
     setErrors(newErrors);
 
-    // Scroll to first error card
     const errorKeys = Object.keys(newErrors) as Array<keyof typeof cardRefs>;
     if (errorKeys.length > 0) {
       const firstErrorKey = errorKeys[0];
@@ -279,6 +473,20 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       return false;
+    }
+
+    // التحقق من توافر عرض تسعير
+    if (formData.subjects.length > 0) {
+      const pricing = calculatePricing({
+        generation: formData.generation,
+        subjectsCount: formData.subjects.length,
+        printType: formData.printType,
+        modelsCount: Number(formData.modelsCount)
+      });
+      if (!pricing.available) {
+        alert("لا يوجد عرض تسعير متاح للخيارات المحددة حالياً. يرجى تعديل عدد المواد أو اختيار خيارات متاحة.");
+        return false;
+      }
     }
 
     return true;
@@ -298,7 +506,9 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         otherSubject: '',
         packagePrice: '',
         deliveryConfirm: '',
-        notes: ''
+        notes: '',
+        printType: 'black_white',
+        modelsCount: ''
       });
       setErrors({});
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -314,6 +524,13 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
     setIsSubmitting(true);
     setErrors({});
+
+    const pricing = calculatePricing({
+      generation: formData.generation,
+      subjectsCount: formData.subjects.length,
+      printType: formData.printType,
+      modelsCount: Number(formData.modelsCount)
+    });
 
     try {
       let response;
@@ -347,7 +564,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       const result = await response.json();
 
       if (result.success && result.orderNumber) {
-        onSubmitSuccess(result.orderNumber);
+        onSubmitSuccess(result.orderNumber, result.total || pricing.total);
       } else {
         throw new Error(result.message || 'فشل حفظ الطلب، يرجى المحاولة مرة أخرى.');
       }
@@ -362,6 +579,24 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       setIsSubmitting(false);
     }
   };
+
+  // تصفية المواد حسب الجيل المختار
+  const filteredSubjects = filterSubjectsByGeneration(allSubjects, formData.generation);
+
+  // حساب أرقام النماذج المتوفرة للخيارات الحالية
+  const availableCounts = getAvailableModelsCounts(
+    formData.generation,
+    formData.subjects.length,
+    formData.printType
+  );
+
+  // حساب التسعير التلقائي الفوري للملخص
+  const pricing = calculatePricing({
+    generation: formData.generation,
+    subjectsCount: formData.subjects.length,
+    printType: formData.printType,
+    modelsCount: Number(formData.modelsCount)
+  });
 
   return (
     <form onSubmit={handleSubmit} className="form-container" noValidate>
@@ -412,7 +647,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       >
         <span className="question-title required">الصف / الجيل</span>
         <div className="options-container">
-          {['توجيهي 2008', 'توجيهي 2009', 'بيتيك BTEC'].map(option => (
+          {['توجيهي 2009', 'بيتيك BTEC', 'توجيهي 2008'].map(option => (
             <div 
               key={option} 
               className={`option-row radio ${formData.generation === option ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
@@ -576,10 +811,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         ref={cardRefs.subjectsList} 
         className={`form-card ${errors.subjectsList ? 'error-state' : ''}`}
       >
-        <span className="question-title">المادة المطلوبة</span>
-        <p className="question-description">يمكنك اختيار مادة واحدة أو عدة مواد مطلوبة:</p>
+        <label className="question-title required">المادة المطلوبة</label>
+        <p className="question-description">يرجى اختيار مادة واحدة أو أكثر:</p>
         
-        {loadingSubjects ? (
+        {!formData.generation ? (
+          <div style={{ padding: '16px 0', color: 'var(--google-purple)', fontWeight: 600, textAlign: 'center' }}>
+            ⚠️ يرجى اختيار الصف / الجيل أولاً لعرض المواد المتاحة.
+          </div>
+        ) : loadingSubjects ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
             <div className="google-spinner"></div>
           </div>
@@ -588,19 +827,16 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             <AlertCircle size={16} />
             <span>{subjectsError}</span>
           </div>
-        ) : subjectsList.length === 0 ? (
+        ) : filteredSubjects.length === 0 ? (
           <div style={{ padding: '16px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
-            لا توجد مواد متاحة حاليًا.
+            لا توجد مواد متاحة حاليًا لهذا الجيل.
           </div>
         ) : (
           <div className="options-container" style={{ gap: '8px' }}>
-            {subjectsList.map(subject => {
+            {filteredSubjects.map(subject => {
               const isSelected = formData.subjects.includes(subject.name);
               const isDisabled = subject.status === 'disabled';
               const { title, details } = parseSubjectName(subject.name);
-              
-              // عرض السعر الثابت المجلوب من السحابة أو الوصف
-              const priceLabel = formatPrice(subject.price);
 
               return (
                 <div 
@@ -640,28 +876,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                       )}
                     </div>
                   </div>
-                  
-                  {priceLabel ? (
-                    <span style={{ 
-                      fontWeight: 700, 
-                      color: isSelected ? 'var(--google-purple)' : 'var(--text-muted)',
-                      fontSize: '0.95rem',
-                      whiteSpace: 'nowrap',
-                      marginLeft: '8px'
-                    }}>
-                      {priceLabel}
-                    </span>
-                  ) : (
-                    <span style={{ 
-                      fontWeight: 500, 
-                      color: 'var(--text-muted)',
-                      fontSize: '0.85rem',
-                      whiteSpace: 'nowrap',
-                      marginLeft: '8px'
-                    }}>
-                      يُحدد لاحقًا
-                    </span>
-                  )}
                 </div>
               );
             })}
@@ -691,6 +905,72 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           </div>
         )}
       </div>
+
+      {/* خيارات الطباعة وعدد النماذج - تظهر بعد اختيار مادة واحدة على الأقل */}
+      {formData.subjects.length > 0 && (
+        <>
+          {/* نوع الطباعة */}
+          <div className="form-card">
+            <span className="question-title required">نوع الطباعة</span>
+            <div className="options-container">
+              {[
+                { key: 'black_white', label: 'أبيض وأسود' },
+                { key: 'color', label: 'ملون' }
+              ].map(option => (
+                <div 
+                  key={option.key} 
+                  className={`option-row radio ${formData.printType === option.key ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
+                  onClick={() => !isSubmitting && handleRadioSelect('printType', option.key)}
+                >
+                  <input 
+                    type="radio" 
+                    name="printType" 
+                    value={option.key} 
+                    checked={formData.printType === option.key} 
+                    onChange={() => {}}
+                    className="option-input"
+                    disabled={isSubmitting}
+                  />
+                  <span className="option-label">{option.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* عدد النماذج لكل مادة */}
+          <div className="form-card">
+            <span className="question-title required">عدد النماذج لكل مادة</span>
+            <p className="question-description">الخيارات المتاحة لعدد المواد المختار:</p>
+            
+            {availableCounts.length === 0 ? (
+              <div style={{ color: '#d93025', fontWeight: 600, padding: '8px 0', fontSize: '0.92rem' }}>
+                ⚠️ لا يوجد عرض متاح لهذا العدد من المواد، يرجى اختيار عدد مواد مختلف.
+              </div>
+            ) : (
+              <div className="options-container">
+                {availableCounts.map(count => (
+                  <div 
+                    key={count} 
+                    className={`option-row radio ${formData.modelsCount === String(count) ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
+                    onClick={() => !isSubmitting && handleRadioSelect('modelsCount', String(count))}
+                  >
+                    <input 
+                      type="radio" 
+                      name="modelsCount" 
+                      value={String(count)} 
+                      checked={formData.modelsCount === String(count)} 
+                      onChange={() => {}}
+                      className="option-input"
+                      disabled={isSubmitting}
+                    />
+                    <span className="option-label">{count} نماذج</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* 10. سعر التوصيل دينار واحد فقط 1JD */}
       <div 
@@ -737,6 +1017,47 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         />
       </div>
 
+      {/* بطاقة ملخص السعر التلقائي للفاتورة */}
+      {pricing.available && (
+        <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <Receipt size={20} style={{ color: 'var(--google-purple)' }} />
+            <span className="question-title" style={{ margin: 0 }}>ملخص الطلب:</span>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.95rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>الجيل:</span>
+              <span style={{ fontWeight: 700 }}>{formData.generation}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>عدد المواد:</span>
+              <span style={{ fontWeight: 700 }}>{formData.subjects.length} مواد</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>عدد النماذج لكل مادة:</span>
+              <span style={{ fontWeight: 700 }}>{formData.modelsCount} نماذج</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>نوع الطباعة:</span>
+              <span style={{ fontWeight: 700 }}>{formData.printType === 'black_white' ? 'أبيض وأسود' : 'ملون'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>سعر المواد:</span>
+              <span style={{ fontWeight: 700, color: 'var(--google-purple)' }}>{pricing.materialsPrice.toFixed(2)} JD</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #ddd', paddingBottom: '8px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>التوصيل:</span>
+              <span style={{ fontWeight: 700 }}>{pricing.deliveryFee.toFixed(2)} JD</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800, marginTop: '4px' }}>
+              <span style={{ color: 'var(--text-color)' }}>الإجمالي المطلوب:</span>
+              <span style={{ color: 'var(--google-purple)' }}>{pricing.total.toFixed(2)} JD</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* تنبيه قبل الإرسال */}
       <div className="warning-box">
         <span className="warning-title">⚠️ ملاحظة</span>
@@ -755,7 +1076,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         <button 
           type="submit" 
           className="btn-submit-google"
-          disabled={isSubmitting || loadingSubjects}
+          disabled={isSubmitting || loadingSubjects || (formData.subjects.length > 0 && !pricing.available)}
         >
           {isSubmitting ? (
             <>
