@@ -17,39 +17,23 @@ function normalizeOrderPayload(payload) {
   };
 }
 
-export const handler = async (event, context) => {
-  // Only allow POST
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      headers: { 
-        "Content-Type": "application/json",
-        "Allow": "POST"
-      },
-      body: JSON.stringify({ success: false, message: "Method Not Allowed. Only POST is supported." })
-    };
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ success: false, message: "Method Not Allowed. Only POST is supported." });
   }
 
   const googleScriptUrl = process.env.GOOGLE_SCRIPT_URL;
   if (!googleScriptUrl) {
-    return {
-      statusCode: 500,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        success: false, 
-        message: "تهيئة السيرفر غير مكتملة: متغير البيئة GOOGLE_SCRIPT_URL غير معرف في Netlify." 
-      })
-    };
+    return res.status(500).json({ 
+      success: false, 
+      message: "تهيئة السيرفر غير مكتملة: متغير البيئة GOOGLE_SCRIPT_URL غير معرف في Vercel." 
+    });
   }
 
   try {
-    const payload = JSON.parse(event.body);
-    
-    console.log("submit-order payload keys:", Object.keys(payload || {}));
-    
+    const payload = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const normalizedData = normalizeOrderPayload(payload);
-    
-    console.log("submit-order data keys:", Object.keys(normalizedData || {}));
 
     const googleResponse = await fetch(googleScriptUrl, {
       method: "POST",
@@ -69,44 +53,28 @@ export const handler = async (event, context) => {
       result = JSON.parse(rawText);
     } catch (parseError) {
       console.error("Google Apps Script raw response:", rawText.slice(0, 3000));
-      return {
-        statusCode: 502,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          success: false,
-          message: "رد Google Apps Script ليس JSON. تحقق من رابط Web App والصلاحيات والنشر.",
-          debug: rawText.slice(0, 3000),
-        }),
-      };
+      return res.status(502).json({
+        success: false,
+        message: "رد Google Apps Script ليس JSON. تحقق من رابط Web App والصلاحيات والنشر.",
+        debug: rawText.slice(0, 3000),
+      });
     }
 
     if (!googleResponse.ok || !result.success) {
-      return {
-        statusCode: 502,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          success: false,
-          message: result.message || "فشل تنفيذ العملية داخل Google Apps Script.",
-          debug: result,
-        }),
-      };
+      return res.status(502).json({
+        success: false,
+        message: result.message || "فشل تنفيذ العملية داخل Google Apps Script.",
+        debug: result,
+      });
     }
 
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(result),
-    };
+    return res.status(200).json(result);
 
   } catch (error) {
-    console.error("Error in submit-order function:", error);
-    return {
-      statusCode: 500,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        success: false, 
-        message: "فشل الاتصال بخدمة Google Sheets: " + error.message 
-      })
-    };
+    console.error("Error in submit-order API:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "فشل الاتصال بخدمة Google Sheets: " + error.message 
+    });
   }
-};
+}

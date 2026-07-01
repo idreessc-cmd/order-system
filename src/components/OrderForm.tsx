@@ -232,7 +232,7 @@ export const calculatePricing = ({
       materialsPrice: 0,
       deliveryFee: 0,
       total: 0,
-      message: "لا يوجد عرض متاح لهذا العدد من المواد، يرجى اختيار عدد مواد مختلف."
+      message: "لا يوجد عرض متاح لهذا الاختيار، يرجى تعديل عدد المواد أو عدد النماذج."
     };
   }
   
@@ -269,8 +269,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     packagePrice: '',
     deliveryConfirm: '',
     notes: '',
-    printType: 'black_white', // القيمة الافتراضية
-    modelsCount: ''
+    printType: '', // القيمة الافتراضية فارغة ليتم الاختيار يدوياً
+    modelsCount: '' // فارغة
   });
 
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
@@ -284,7 +284,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   useEffect(() => {
     const loadSubjects = async () => {
       try {
-        const response = await fetch('/.netlify/functions/get-subjects');
+        const response = await fetch('/api/get-subjects');
         const result = await response.json();
         
         if (response.ok && result.success) {
@@ -318,7 +318,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         packagePrice: '',
         deliveryConfirm: safeText(initialData.deliveryConfirm),
         notes: safeText(initialData.notes),
-        printType: safeText(initialData.printType) || 'black_white',
+        printType: safeText(initialData.printType),
         modelsCount: safeText(initialData.modelsCount)
       });
     }
@@ -352,7 +352,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         ...prev,
         generation: value,
         subjects: [],
-        printType: 'black_white',
+        printType: '',
         modelsCount: ''
       }));
     } else if (name === 'printType') {
@@ -507,7 +507,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         packagePrice: '',
         deliveryConfirm: '',
         notes: '',
-        printType: 'black_white',
+        printType: '',
         modelsCount: ''
       });
       setErrors({});
@@ -536,7 +536,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       let response;
       
       if (isEditMode) {
-        response = await fetch('/.netlify/functions/update-order', {
+        response = await fetch('/api/update-order', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -548,7 +548,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           }),
         });
       } else {
-        response = await fetch('/.netlify/functions/submit-order', {
+        response = await fetch('/api/submit-order', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -564,7 +564,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       const result = await response.json();
 
       if (result.success && result.orderNumber) {
-        onSubmitSuccess(result.orderNumber, result.total || pricing.total);
+        onSubmitSuccess(result.orderNumber, result.pricing?.total || pricing.total);
       } else {
         throw new Error(result.message || 'فشل حفظ الطلب، يرجى المحاولة مرة أخرى.');
       }
@@ -906,70 +906,69 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         )}
       </div>
 
-      {/* خيارات الطباعة وعدد النماذج - تظهر بعد اختيار مادة واحدة على الأقل */}
+      {/* خيارات الطباعة - تظهر بعد اختيار مادة واحدة على الأقل */}
       {formData.subjects.length > 0 && (
-        <>
-          {/* نوع الطباعة */}
-          <div className="form-card">
-            <span className="question-title required">نوع الطباعة</span>
+        <div className="form-card">
+          <span className="question-title required">نوع الطباعة</span>
+          <div className="options-container">
+            {[
+              { key: 'black_white', label: 'أبيض وأسود' },
+              { key: 'color', label: 'ملون' }
+            ].map(option => (
+              <div 
+                key={option.key} 
+                className={`option-row radio ${formData.printType === option.key ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
+                onClick={() => !isSubmitting && handleRadioSelect('printType', option.key)}
+              >
+                <input 
+                  type="radio" 
+                  name="printType" 
+                  value={option.key} 
+                  checked={formData.printType === option.key} 
+                  onChange={() => {}}
+                  className="option-input"
+                  disabled={isSubmitting}
+                />
+                <span className="option-label">{option.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* اختيار عدد النماذج لكل مادة - تظهر بعد اختيار نوع الطباعة */}
+      {formData.subjects.length > 0 && formData.printType && (
+        <div className="form-card">
+          <span className="question-title required">عدد النماذج لكل مادة</span>
+          <p className="question-description">الخيارات المتاحة لعدد المواد المختار:</p>
+          
+          {availableCounts.length === 0 ? (
+            <div style={{ color: '#d93025', fontWeight: 600, padding: '8px 0', fontSize: '0.92rem' }}>
+              ⚠️ لا يوجد عرض متاح لهذا العدد من المواد، يرجى اختيار عدد مواد مختلف.
+            </div>
+          ) : (
             <div className="options-container">
-              {[
-                { key: 'black_white', label: 'أبيض وأسود' },
-                { key: 'color', label: 'ملون' }
-              ].map(option => (
+              {availableCounts.map(count => (
                 <div 
-                  key={option.key} 
-                  className={`option-row radio ${formData.printType === option.key ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-                  onClick={() => !isSubmitting && handleRadioSelect('printType', option.key)}
+                  key={count} 
+                  className={`option-row radio ${formData.modelsCount === String(count) ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
+                  onClick={() => !isSubmitting && handleRadioSelect('modelsCount', String(count))}
                 >
                   <input 
                     type="radio" 
-                    name="printType" 
-                    value={option.key} 
-                    checked={formData.printType === option.key} 
+                    name="modelsCount" 
+                    value={String(count)} 
+                    checked={formData.modelsCount === String(count)} 
                     onChange={() => {}}
                     className="option-input"
                     disabled={isSubmitting}
                   />
-                  <span className="option-label">{option.label}</span>
+                  <span className="option-label">{count} نماذج</span>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* عدد النماذج لكل مادة */}
-          <div className="form-card">
-            <span className="question-title required">عدد النماذج لكل مادة</span>
-            <p className="question-description">الخيارات المتاحة لعدد المواد المختار:</p>
-            
-            {availableCounts.length === 0 ? (
-              <div style={{ color: '#d93025', fontWeight: 600, padding: '8px 0', fontSize: '0.92rem' }}>
-                ⚠️ لا يوجد عرض متاح لهذا العدد من المواد، يرجى اختيار عدد مواد مختلف.
-              </div>
-            ) : (
-              <div className="options-container">
-                {availableCounts.map(count => (
-                  <div 
-                    key={count} 
-                    className={`option-row radio ${formData.modelsCount === String(count) ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-                    onClick={() => !isSubmitting && handleRadioSelect('modelsCount', String(count))}
-                  >
-                    <input 
-                      type="radio" 
-                      name="modelsCount" 
-                      value={String(count)} 
-                      checked={formData.modelsCount === String(count)} 
-                      onChange={() => {}}
-                      className="option-input"
-                      disabled={isSubmitting}
-                    />
-                    <span className="option-label">{count} نماذج</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
+          )}
+        </div>
       )}
 
       {/* 10. سعر التوصيل دينار واحد فقط 1JD */}
@@ -1017,6 +1016,15 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         />
       </div>
 
+      {/* تنبيه عند عدم وجود عرض متاح للخيارات المحددة */}
+      {formData.subjects.length > 0 && formData.printType && formData.modelsCount && !pricing.available && (
+        <div className="form-card" style={{ borderTop: '5px solid #d93025' }}>
+          <div style={{ color: '#d93025', fontWeight: 600, padding: '8px 0', fontSize: '0.92rem' }}>
+            ⚠️ لا يوجد عرض متاح لهذا الاختيار، يرجى تعديل عدد المواد أو عدد النماذج.
+          </div>
+        </div>
+      )}
+
       {/* بطاقة ملخص السعر التلقائي للفاتورة */}
       {pricing.available && (
         <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)' }}>
@@ -1033,6 +1041,12 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>عدد المواد:</span>
               <span style={{ fontWeight: 700 }}>{formData.subjects.length} مواد</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px dashed #eee', paddingBottom: '6px', gap: '4px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>المواد المختارة:</span>
+              <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-color)' }}>
+                {formData.subjects.join(', ')}
+              </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
               <span style={{ color: 'var(--text-muted)' }}>عدد النماذج لكل مادة:</span>

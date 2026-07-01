@@ -456,7 +456,11 @@ function submitOrder(data) {
     return {
       success: true,
       orderNumber: orderId,
-      total: pricing.total // إرجاع الإجمالي للواجهة
+      pricing: {
+        materialsPrice: pricing.materialsPrice,
+        deliveryFee: pricing.deliveryFee,
+        total: pricing.total
+      }
     };
     
   } catch (error) {
@@ -644,7 +648,11 @@ function updateOrder(payload) {
     return {
       success: true,
       orderNumber: orderNumber,
-      total: pricing.total, // إرجاع الإجمالي المحدث للواجهة
+      pricing: {
+        materialsPrice: pricing.materialsPrice,
+        deliveryFee: pricing.deliveryFee,
+        total: pricing.total
+      },
       message: "تم تعديل طلبكم بنجاح"
     };
     

@@ -33,7 +33,7 @@ export const EditOrderLookup: React.FC<EditOrderLookupProps> = ({ onBack, onOrde
     setIsSearching(true);
 
     try {
-      const response = await fetch('/.netlify/functions/find-order', {
+      const response = await fetch('/api/find-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

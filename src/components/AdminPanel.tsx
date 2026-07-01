@@ -96,7 +96,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     setLoading(true);
 
     try {
-      const response = await fetch('/.netlify/functions/admin-login', {
+      const response = await fetch('/api/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
@@ -129,7 +129,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/.netlify/functions/admin-get-subjects', {
+      const response = await fetch('/api/admin-get-subjects', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -165,7 +165,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
 
     setSaving(true);
     try {
-      const response = await fetch('/.netlify/functions/admin-save-subject', {
+      const response = await fetch('/api/admin-save-subject', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,7 +191,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
 
   const handleToggleStatus = async (subject: Subject, newStatus: string) => {
     try {
-      const response = await fetch('/.netlify/functions/admin-save-subject', {
+      const response = await fetch('/api/admin-save-subject', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     }
 
     try {
-      const response = await fetch('/.netlify/functions/admin-delete-subject', {
+      const response = await fetch('/api/admin-delete-subject', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
