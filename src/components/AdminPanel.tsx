@@ -4,12 +4,22 @@ import { LogIn, Plus, Edit2, EyeOff, CheckCircle, XCircle, ShieldAlert, LogOut, 
 interface Subject {
   id: string;
   name: string;
-  price: string; // تم تغييرها إلى سلسلة نصية لمنع مشاكل التحويل غير المتوقعة
+  price: string;
   description: string;
   category: string;
   status: string; // active | disabled | hidden
   sortOrder: number;
   createdAt?: string;
+  updatedAt?: string;
+}
+
+interface PricingRule {
+  category: string;
+  printType: string;
+  modelsCount: number;
+  subjectsCount: number;
+  price: number;
+  status: string; // active | disabled
   updatedAt?: string;
 }
 
@@ -33,9 +43,7 @@ const formatPrice = (price: unknown): string => {
     return "";
   }
 
-  return Number.isInteger(numericPrice)
-    ? `${numericPrice} JD`
-    : `${numericPrice.toFixed(2).replace(/\.?0+$/, "")} JD`;
+  return `${numericPrice.toFixed(2).replace(/\.?0+$/, "")} JD`;
 };
 
 const normalizeSubject = (subject: any): Subject => ({
@@ -50,18 +58,33 @@ const normalizeSubject = (subject: any): Subject => ({
   updatedAt: String(subject.updatedAt || "")
 });
 
+const normalizePricingRule = (rule: any): PricingRule => ({
+  category: String(rule.category || ""),
+  printType: String(rule.printType || ""),
+  modelsCount: Number(rule.modelsCount || 0),
+  subjectsCount: Number(rule.subjectsCount || 0),
+  price: Number(rule.price || 0),
+  status: String(rule.status || "active"),
+  updatedAt: String(rule.updatedAt || "")
+});
+
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [token, setToken] = useState('');
+  
+  // Tabs State
+  const [activeTab, setActiveTab] = useState<'subjects' | 'pricing'>('subjects');
+
+  // Subjects state
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
+  // Subject Modal State
+  const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [subjectModalMode, setSubjectModalMode] = useState<'add' | 'edit'>('add');
   const [currentSubject, setCurrentSubject] = useState<Partial<Subject>>({
     id: '',
     name: '',
@@ -71,8 +94,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     status: 'active',
     sortOrder: 1
   });
-  const [modalError, setModalError] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [subjectModalError, setSubjectModalError] = useState('');
+  const [savingSubject, setSavingSubject] = useState(false);
+
+  // Pricing state
+  const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
+  const [loadingPricing, setLoadingPricing] = useState(false);
+
+  // Pricing Modal State
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [pricingModalMode, setPricingModalMode] = useState<'add' | 'edit'>('add');
+  const [currentPricing, setCurrentPricing] = useState<Partial<PricingRule>>({
+    category: '2009',
+    printType: 'black_white',
+    modelsCount: 2,
+    subjectsCount: 1,
+    price: 3.5,
+    status: 'active'
+  });
+  const [pricingModalError, setPricingModalError] = useState('');
+  const [savingPricing, setSavingPricing] = useState(false);
 
   // Check if token exists in localStorage on mount
   useEffect(() => {
@@ -83,12 +124,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     }
   }, []);
 
-  // Fetch subjects once authenticated
+  // Fetch data once authenticated
   useEffect(() => {
     if (isAuthenticated && token) {
-      fetchSubjects();
+      if (activeTab === 'subjects') {
+        fetchSubjects();
+      } else {
+        fetchPricingRules();
+      }
     }
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, token, activeTab]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,7 +168,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     setToken('');
     setIsAuthenticated(false);
     setSubjects([]);
+    setPricingRules([]);
   };
+
+  /* ========================================================
+     Subjects Functions
+     ======================================================== */
 
   const fetchSubjects = async () => {
     setLoading(true);
@@ -156,14 +206,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
 
   const handleSaveSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-    setModalError('');
+    setSubjectModalError('');
 
     if (!currentSubject.name || !currentSubject.category || !currentSubject.status) {
-      setModalError('الاسم والتصنيف والحالة حقول مطلوبة.');
+      setSubjectModalError('الاسم والتصنيف والحالة حقول مطلوبة.');
       return;
     }
 
-    setSaving(true);
+    setSavingSubject(true);
     try {
       const response = await fetch('/api/admin-save-subject', {
         method: 'POST',
@@ -177,19 +227,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        setIsModalOpen(false);
+        setIsSubjectModalOpen(false);
         fetchSubjects();
       } else {
-        setModalError(result.message || 'فشل حفظ المادة.');
+        setSubjectModalError(result.message || 'فشل حفظ المادة.');
       }
     } catch (err) {
-      setModalError('تعذر الاتصال بالسيرفر لحفظ التعديلات.');
+      setSubjectModalError('تعذر الاتصال بالسيرفر لحفظ التعديلات.');
     } finally {
-      setSaving(false);
+      setSavingSubject(false);
     }
   };
 
-  const handleToggleStatus = async (subject: Subject, newStatus: string) => {
+  const handleToggleSubjectStatus = async (subject: Subject, newStatus: string) => {
     try {
       const response = await fetch('/api/admin-save-subject', {
         method: 'POST',
@@ -240,8 +290,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     }
   };
 
-  const openAddModal = () => {
-    setModalMode('add');
+  const openAddSubjectModal = () => {
+    setSubjectModalMode('add');
     setCurrentSubject({
       id: '',
       name: '',
@@ -251,15 +301,132 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
       status: 'active',
       sortOrder: (subjects.length + 1)
     });
-    setModalError('');
-    setIsModalOpen(true);
+    setSubjectModalError('');
+    setIsSubjectModalOpen(true);
   };
 
-  const openEditModal = (subject: Subject) => {
-    setModalMode('edit');
+  const openEditSubjectModal = (subject: Subject) => {
+    setSubjectModalMode('edit');
     setCurrentSubject(subject);
-    setModalError('');
-    setIsModalOpen(true);
+    setSubjectModalError('');
+    setIsSubjectModalOpen(true);
+  };
+
+  /* ========================================================
+     Pricing Functions
+     ======================================================== */
+
+  const fetchPricingRules = async () => {
+    setLoadingPricing(true);
+    setError('');
+    try {
+      const response = await fetch('/api/admin-get-pricing', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        const normalized = (result.pricing || []).map(normalizePricingRule);
+        setPricingRules(normalized);
+      } else {
+        if (response.status === 401) {
+          handleLogout();
+        }
+        setError(result.message || 'فشل جلب الأسعار من السيرفر.');
+      }
+    } catch (err) {
+      setError('فشل تحميل الأسعار، يرجى التحقق من اتصال الإنترنت.');
+    } finally {
+      setLoadingPricing(false);
+    }
+  };
+
+  const handleSavePricing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPricingModalError('');
+
+    const priceNum = Number(currentPricing.price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      setPricingModalError('يرجى إدخال سعر مالي صحيح.');
+      return;
+    }
+
+    setSavingPricing(true);
+    try {
+      const response = await fetch('/api/admin-save-pricing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(currentPricing)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setIsPricingModalOpen(false);
+        fetchPricingRules();
+      } else {
+        setPricingModalError(result.message || 'فشل حفظ السعر.');
+      }
+    } catch (err) {
+      setPricingModalError('تعذر الاتصال بالسيرفر لحفظ التعديلات.');
+    } finally {
+      setSavingPricing(false);
+    }
+  };
+
+  const handleDisablePricing = async (rule: PricingRule) => {
+    if (!window.confirm('هل أنت متأكد من رغبتك في تعطيل قاعدة التسعير هذه؟ لن تتوفر للطلاب في الحاسبة.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin-disable-pricing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(rule)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        fetchPricingRules();
+      } else {
+        alert(result.message || 'فشل تعطيل قاعدة التسعير.');
+      }
+    } catch (err) {
+      alert('تعذر الاتصال لتعطيل السعر.');
+    }
+  };
+
+  const openAddPricingModal = () => {
+    setPricingModalMode('add');
+    setCurrentPricing({
+      category: '2009',
+      printType: 'black_white',
+      modelsCount: 2,
+      subjectsCount: 1,
+      price: 3.5,
+      status: 'active'
+    });
+    setPricingModalError('');
+    setIsPricingModalOpen(true);
+  };
+
+  const openEditPricingModal = (rule: PricingRule) => {
+    setPricingModalMode('edit');
+    setCurrentPricing(rule);
+    setPricingModalError('');
+    setIsPricingModalOpen(true);
   };
 
   // Render Login View
@@ -333,7 +500,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
     <div style={{ width: '100%', paddingBottom: '40px' }}>
       
       {/* Header bar */}
-      <div className="form-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', marginBottom: '20px' }}>
+      <div className="form-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', marginBottom: '16px' }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>إدارة المواد والأسعار 🛠️</h2>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>تحديث فوري لنموذج الطلاب من السحابة.</p>
@@ -366,154 +533,308 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
         </div>
       )}
 
-      {/* Control Actions Row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <span style={{ fontSize: '0.9rem', color: 'var(--text-color)', fontWeight: 600 }}>
-          المواد الحالية في النظام ({subjects.length} مواد)
-        </span>
+      {/* التبويبات (Tabs Layout) */}
+      <div className="admin-tabs-container">
         <button 
           type="button" 
-          onClick={openAddModal} 
-          className="btn-submit-google" 
-          style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', margin: 0 }}
+          onClick={() => setActiveTab('subjects')} 
+          className={`admin-tab-btn ${activeTab === 'subjects' ? 'active' : ''}`}
         >
-          <Plus size={18} />
-          <span>إضافة مادة جديدة</span>
+          إدارة المواد 📚
+        </button>
+        <button 
+          type="button" 
+          onClick={() => setActiveTab('pricing')} 
+          className={`admin-tab-btn ${activeTab === 'pricing' ? 'active' : ''}`}
+        >
+          إدارة الأسعار 💰
         </button>
       </div>
 
-      {/* Subjects list grid */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {loading && subjects.length === 0 ? (
-          <div className="form-card" style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
-            <div className="google-spinner"></div>
+      {/* ========================================================
+          تبويب إدارة المواد
+          ======================================================== */}
+      {activeTab === 'subjects' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-color)', fontWeight: 600 }}>
+              المواد الحالية في شيت Subjects ({subjects.length} مواد)
+            </span>
+            <button 
+              type="button" 
+              onClick={openAddSubjectModal} 
+              className="btn-submit-google" 
+              style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', margin: 0 }}
+            >
+              <Plus size={18} />
+              <span>إضافة مادة جديدة</span>
+            </button>
           </div>
-        ) : subjects.length === 0 ? (
-          <div className="form-card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-            لا توجد مواد مضافة حالياً في شيت Subjects.
-          </div>
-        ) : (
-          subjects.map(subject => {
-            const priceLabel = formatPrice(subject.price);
-            
-            return (
-              <div 
-                key={subject.id} 
-                className="form-card"
-                style={{
-                  padding: '16px 20px',
-                  borderLeft: subject.status === 'active' 
-                    ? '5px solid #1e8e3e' 
-                    : subject.status === 'disabled' 
-                      ? '5px solid #f9ab00' 
-                      : '5px solid #d93025',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  marginBottom: 0
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-color)' }}>
-                        {subject.name}
-                      </span>
-                      <span style={{
-                        fontSize: '0.75rem',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontWeight: 600,
-                        backgroundColor: subject.category === '2009' ? '#e8f0fe' : subject.category === '2008' ? '#f3e8fd' : '#fce8e6',
-                        color: subject.category === '2009' ? '#1a73e8' : subject.category === '2008' ? 'var(--google-purple)' : '#c5221f'
-                      }}>
-                        {subject.category}
-                      </span>
-                    </div>
-                    {subject.description && (
-                      <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        {subject.description}
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div style={{ textAlign: 'left', fontWeight: 800, color: 'var(--google-purple)', fontSize: '1.1rem' }}>
-                    {priceLabel || 'يُحدد لاحقاً'}
-                  </div>
-                </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '12px', marginTop: '4px' }}>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>الترتيب: <strong>{subject.sortOrder}</strong></span>
-                    <span style={{ color: '#eee' }}>|</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      الحالة: 
-                      <strong style={{ 
-                        color: subject.status === 'active' ? '#1e8e3e' : subject.status === 'disabled' ? '#f9ab00' : '#d93025',
-                        marginRight: '4px'
-                      }}>
-                        {subject.status === 'active' ? 'نشطة' : subject.status === 'disabled' ? 'معطلة' : 'مخفية'}
-                      </strong>
-                    </span>
-                  </div>
-
-                  {/* Actions row */}
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => openEditModal(subject)}
-                      className="clear-form-link"
-                      style={{ padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
-                    >
-                      <Edit2 size={14} />
-                      <span>تعديل</span>
-                    </button>
-
-                    {subject.status !== 'active' && (
-                      <button 
-                        type="button" 
-                        onClick={() => handleToggleStatus(subject, 'active')}
-                        className="clear-form-link"
-                        style={{ color: '#1e8e3e', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #1e8e3e', borderRadius: '4px' }}
-                      >
-                        <CheckCircle size={14} />
-                        <span>تفعيل</span>
-                      </button>
-                    )}
-
-                    {subject.status === 'active' && (
-                      <button 
-                        type="button" 
-                        onClick={() => handleToggleStatus(subject, 'disabled')}
-                        className="clear-form-link"
-                        style={{ color: '#f9ab00', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #f9ab00', borderRadius: '4px' }}
-                      >
-                        <XCircle size={14} />
-                        <span>تعطيل</span>
-                      </button>
-                    )}
-
-                    {subject.status !== 'hidden' && (
-                      <button 
-                        type="button" 
-                        onClick={() => handleDeleteSubject(subject.id)}
-                        className="clear-form-link"
-                        style={{ color: '#d93025', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #d93025', borderRadius: '4px' }}
-                      >
-                        <EyeOff size={14} />
-                        <span>إخفاء</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {loading && subjects.length === 0 ? (
+              <div className="form-card" style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+                <div className="google-spinner" style={{ borderColor: 'var(--google-purple)', borderTopColor: 'transparent' }}></div>
               </div>
-            );
-          })
-        )}
-      </div>
+            ) : subjects.length === 0 ? (
+              <div className="form-card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                لا توجد مواد مضافة حالياً في شيت Subjects.
+              </div>
+            ) : (
+              subjects.map(subject => {
+                const priceLabel = formatPrice(subject.price);
+                
+                return (
+                  <div 
+                    key={subject.id} 
+                    className="form-card"
+                    style={{
+                      padding: '16px 20px',
+                      borderLeft: subject.status === 'active' 
+                        ? '5px solid #1e8e3e' 
+                        : subject.status === 'disabled' 
+                          ? '5px solid #f9ab00' 
+                          : '5px solid #d93025',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      marginBottom: 0
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-color)' }}>
+                            {subject.name}
+                          </span>
+                          <span style={{
+                            fontSize: '0.75rem',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 600,
+                            backgroundColor: subject.category === '2009' ? '#e8f0fe' : subject.category === '2008' ? '#f3e8fd' : '#fce8e6',
+                            color: subject.category === '2009' ? '#1a73e8' : subject.category === '2008' ? 'var(--google-purple)' : '#c5221f'
+                          }}>
+                            {subject.category}
+                          </span>
+                        </div>
+                        {subject.description && (
+                          <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                            {subject.description}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div style={{ textAlign: 'left', fontWeight: 800, color: 'var(--google-purple)', fontSize: '1.1rem' }}>
+                        {priceLabel || 'يُحدد لاحقاً'}
+                      </div>
+                    </div>
 
-      {/* Add/Edit Modal */}
-      {isModalOpen && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '12px', marginTop: '4px' }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>الترتيب: <strong>{subject.sortOrder}</strong></span>
+                        <span style={{ color: '#eee' }}>|</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          الحالة: 
+                          <strong style={{ 
+                            color: subject.status === 'active' ? '#1e8e3e' : subject.status === 'disabled' ? '#f9ab00' : '#d93025',
+                            marginRight: '4px'
+                          }}>
+                            {subject.status === 'active' ? 'نشطة' : subject.status === 'disabled' ? 'معطلة' : 'مخفية'}
+                          </strong>
+                        </span>
+                      </div>
+
+                      {/* Actions row */}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          type="button" 
+                          onClick={() => openEditSubjectModal(subject)}
+                          className="clear-form-link"
+                          style={{ padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
+                        >
+                          <Edit2 size={14} />
+                          <span>تعديل</span>
+                        </button>
+
+                        {subject.status !== 'active' && (
+                          <button 
+                            type="button" 
+                            onClick={() => handleToggleSubjectStatus(subject, 'active')}
+                            className="clear-form-link"
+                            style={{ color: '#1e8e3e', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #1e8e3e', borderRadius: '4px' }}
+                          >
+                            <CheckCircle size={14} />
+                            <span>تفعيل</span>
+                          </button>
+                        )}
+
+                        {subject.status === 'active' && (
+                          <button 
+                            type="button" 
+                            onClick={() => handleToggleSubjectStatus(subject, 'disabled')}
+                            className="clear-form-link"
+                            style={{ color: '#f9ab00', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #f9ab00', borderRadius: '4px' }}
+                          >
+                            <XCircle size={14} />
+                            <span>تعطيل</span>
+                          </button>
+                        )}
+
+                        {subject.status !== 'hidden' && (
+                          <button 
+                            type="button" 
+                            onClick={() => handleDeleteSubject(subject.id)}
+                            className="clear-form-link"
+                            style={{ color: '#d93025', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #d93025', borderRadius: '4px' }}
+                          >
+                            <EyeOff size={14} />
+                            <span>إخفاء</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ========================================================
+          تبويب إدارة الأسعار
+          ======================================================== */}
+      {activeTab === 'pricing' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-color)', fontWeight: 600 }}>
+              قواعد التسعير في شيت Pricing ({pricingRules.length} قاعدة)
+            </span>
+            <button 
+              type="button" 
+              onClick={openAddPricingModal} 
+              className="btn-submit-google" 
+              style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', margin: 0 }}
+            >
+              <Plus size={18} />
+              <span>إضافة سعر جديد</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {loadingPricing && pricingRules.length === 0 ? (
+              <div className="form-card" style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+                <div className="google-spinner" style={{ borderColor: 'var(--google-purple)', borderTopColor: 'transparent' }}></div>
+              </div>
+            ) : pricingRules.length === 0 ? (
+              <div className="form-card" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                لا توجد أسعار مضافة حالياً في شيت Pricing.
+              </div>
+            ) : (
+              pricingRules.map((rule, index) => {
+                const key = `${rule.category}-${rule.printType}-${rule.modelsCount}-${rule.subjectsCount}-${index}`;
+                return (
+                  <div 
+                    key={key} 
+                    className="form-card"
+                    style={{
+                      padding: '16px 20px',
+                      borderLeft: rule.status === 'active' 
+                        ? '5px solid #1e8e3e' 
+                        : '5px solid #d93025',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      marginBottom: 0
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-color)' }}>
+                            {rule.category === '2008' ? 'سعر المادة للـ 2008' : `باقة ${rule.subjectsCount} مواد`}
+                          </span>
+                          <span style={{
+                            fontSize: '0.75rem',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 600,
+                            backgroundColor: rule.category === '2009' ? '#e8f0fe' : rule.category === '2008' ? '#f3e8fd' : '#fce8e6',
+                            color: rule.category === '2009' ? '#1a73e8' : rule.category === '2008' ? 'var(--google-purple)' : '#c5221f'
+                          }}>
+                            {rule.category}
+                          </span>
+                          <span style={{
+                            fontSize: '0.75rem',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 600,
+                            backgroundColor: rule.printType === 'color' ? '#fff2f2' : '#f1f3f4',
+                            color: rule.printType === 'color' ? '#d149ff' : '#5f6368',
+                            border: rule.printType === 'color' ? '1px solid #e066ff' : '1px solid #ccc'
+                          }}>
+                            {rule.printType === 'color' ? 'ملون' : 'أبيض وأسود'}
+                          </span>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                            ({rule.modelsCount} نماذج)
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div style={{ textAlign: 'left', fontWeight: 800, color: 'var(--google-purple)', fontSize: '1.25rem' }}>
+                        {rule.price.toFixed(2)} JD
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '12px', marginTop: '4px' }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          الحالة: 
+                          <strong style={{ 
+                            color: rule.status === 'active' ? '#1e8e3e' : '#d93025',
+                            marginRight: '4px'
+                          }}>
+                            {rule.status === 'active' ? 'نشطة' : 'معطلة'}
+                          </strong>
+                        </span>
+                      </div>
+
+                      {/* Actions row */}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          type="button" 
+                          onClick={() => openEditPricingModal(rule)}
+                          className="clear-form-link"
+                          style={{ padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
+                        >
+                          <Edit2 size={14} />
+                          <span>تعديل السعر</span>
+                        </button>
+
+                        {rule.status === 'active' && (
+                          <button 
+                            type="button" 
+                            onClick={() => handleDisablePricing(rule)}
+                            className="clear-form-link"
+                            style={{ color: '#d93025', padding: '4px 8px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #d93025', borderRadius: '4px' }}
+                          >
+                            <XCircle size={14} />
+                            <span>تعطيل</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Add/Edit Subject Modal */}
+      {isSubjectModalOpen && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -529,7 +850,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
         }}>
           <div className="form-card" style={{ width: '100%', maxWidth: '500px', margin: 0, padding: '24px' }}>
             <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', fontWeight: 700 }}>
-              {modalMode === 'add' ? 'إضافة مادة جديدة ➕' : 'تعديل بيانات المادة ✏️'}
+              {subjectModalMode === 'add' ? 'إضافة مادة جديدة ➕' : 'تعديل بيانات المادة ✏️'}
             </h3>
 
             <form onSubmit={handleSaveSubject} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -542,7 +863,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                   value={currentSubject.id || ''}
                   onChange={(e) => setCurrentSubject(prev => ({ ...prev, id: e.target.value }))}
                   className="input-text-field"
-                  disabled={modalMode === 'edit' || saving}
+                  disabled={subjectModalMode === 'edit' || savingSubject}
                 />
               </div>
 
@@ -554,21 +875,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                   value={currentSubject.name || ''}
                   onChange={(e) => setCurrentSubject(prev => ({ ...prev, name: e.target.value }))}
                   className="input-text-field"
-                  disabled={saving}
+                  disabled={savingSubject}
                   required
                 />
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <div style={{ flex: 1 }}>
-                  <label className="question-title" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>السعر (JD)</label>
+                  <label className="question-title" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>السعر (JD) - للتوافق</label>
                   <input
                     type="text"
                     placeholder="مثال: 4.5"
                     value={currentSubject.price || ''}
                     onChange={(e) => setCurrentSubject(prev => ({ ...prev, price: e.target.value }))}
                     className="input-text-field"
-                    disabled={saving}
+                    disabled={savingSubject}
                   />
                 </div>
 
@@ -580,21 +901,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                     value={currentSubject.sortOrder || ''}
                     onChange={(e) => setCurrentSubject(prev => ({ ...prev, sortOrder: parseInt(e.target.value, 10) || 1 }))}
                     className="input-text-field"
-                    disabled={saving}
+                    disabled={savingSubject}
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="question-title" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>الوصف أو موعد التوصيل</label>
+                <label className="question-title" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>الوصف أو موعد التوصيل (يظهر لغير BTEC)</label>
                 <input
                   type="text"
                   placeholder="مثال: التوصيل يوم الأربعاء 1/7"
                   value={currentSubject.description || ''}
                   onChange={(e) => setCurrentSubject(prev => ({ ...prev, description: e.target.value }))}
                   className="input-text-field"
-                  disabled={saving}
+                  disabled={savingSubject}
                 />
               </div>
 
@@ -605,7 +926,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                     value={currentSubject.category || '2009'}
                     onChange={(e) => setCurrentSubject(prev => ({ ...prev, category: e.target.value }))}
                     className="input-select-field"
-                    disabled={saving}
+                    style={{ maxWidth: '100%' }}
+                    disabled={savingSubject}
                     required
                   >
                     <option value="2009">توجيهي 2009</option>
@@ -621,7 +943,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                     value={currentSubject.status || 'active'}
                     onChange={(e) => setCurrentSubject(prev => ({ ...prev, status: e.target.value }))}
                     className="input-select-field"
-                    disabled={saving}
+                    style={{ maxWidth: '100%' }}
+                    disabled={savingSubject}
                     required
                   >
                     <option value="active">نشطة (تظهر وقابلة للاختيار)</option>
@@ -631,10 +954,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                 </div>
               </div>
 
-              {modalError && (
+              {subjectModalError && (
                 <div className="card-error-msg" style={{ margin: '4px 0 0 0' }}>
                   <AlertCircle size={14} />
-                  <span>{modalError}</span>
+                  <span>{subjectModalError}</span>
                 </div>
               )}
 
@@ -643,16 +966,159 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onBackToApp }) => {
                   type="submit" 
                   className="btn-submit-google" 
                   style={{ flex: 1, margin: 0 }}
-                  disabled={saving}
+                  disabled={savingSubject}
                 >
-                  {saving ? 'جاري الحفظ...' : 'حفظ المادة'}
+                  {savingSubject ? 'جاري الحفظ...' : 'حفظ المادة'}
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => setIsSubjectModalOpen(false)}
                   className="clear-form-link"
                   style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '8px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                  disabled={saving}
+                  disabled={savingSubject}
+                >
+                  إلغاء
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Pricing Modal */}
+      {isPricingModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          padding: '16px'
+        }}>
+          <div className="form-card" style={{ width: '100%', maxWidth: '500px', margin: 0, padding: '24px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', fontWeight: 700 }}>
+              {pricingModalMode === 'add' ? 'إضافة قاعدة تسعير جديدة ➕' : 'تعديل السعر 💰'}
+            </h3>
+
+            <form onSubmit={handleSavePricing} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label className="question-title required" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>التصنيف / الجيل</label>
+                  <select
+                    value={currentPricing.category || '2009'}
+                    onChange={(e) => setCurrentPricing(prev => ({ ...prev, category: e.target.value }))}
+                    className="input-select-field"
+                    style={{ maxWidth: '100%' }}
+                    disabled={pricingModalMode === 'edit' || savingPricing}
+                    required
+                  >
+                    <option value="2009">2009</option>
+                    <option value="BTEC">BTEC</option>
+                    <option value="2008">2008</option>
+                  </select>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label className="question-title required" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>نوع الطباعة</label>
+                  <select
+                    value={currentPricing.printType || 'black_white'}
+                    onChange={(e) => setCurrentPricing(prev => ({ ...prev, printType: e.target.value }))}
+                    className="input-select-field"
+                    style={{ maxWidth: '100%' }}
+                    disabled={pricingModalMode === 'edit' || savingPricing}
+                    required
+                  >
+                    <option value="black_white">أبيض وأسود</option>
+                    <option value="color">ملون</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ flex: 1 }}>
+                  <label className="question-title required" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>عدد النماذج</label>
+                  <input
+                    type="number"
+                    value={currentPricing.modelsCount || 2}
+                    onChange={(e) => setCurrentPricing(prev => ({ ...prev, modelsCount: parseInt(e.target.value, 10) || 2 }))}
+                    className="input-text-field"
+                    disabled={pricingModalMode === 'edit' || savingPricing}
+                    required
+                  />
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label className="question-title required" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>
+                    {currentPricing.category === '2008' ? 'عدد المواد (افتراضي 1)' : 'عدد المواد'}
+                  </label>
+                  <input
+                    type="number"
+                    value={currentPricing.subjectsCount || 1}
+                    onChange={(e) => setCurrentPricing(prev => ({ ...prev, subjectsCount: parseInt(e.target.value, 10) || 1 }))}
+                    className="input-text-field"
+                    disabled={(pricingModalMode === 'edit' || currentPricing.category === '2008') || savingPricing}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="question-title required" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>السعر المطلوب (JD)</label>
+                <input
+                  type="text"
+                  placeholder="مثال: 8.5"
+                  value={currentPricing.price || ''}
+                  onChange={(e) => setCurrentPricing(prev => ({ ...prev, price: Number(e.target.value) || 0 }))}
+                  className="input-text-field"
+                  disabled={savingPricing}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="question-title required" style={{ fontSize: '0.85rem', marginBottom: '4px' }}>الحالة</label>
+                <select
+                  value={currentPricing.status || 'active'}
+                  onChange={(e) => setCurrentPricing(prev => ({ ...prev, status: e.target.value }))}
+                  className="input-select-field"
+                  style={{ maxWidth: '100%' }}
+                  disabled={savingPricing}
+                  required
+                >
+                  <option value="active">نشطة (متاحة للطلاب)</option>
+                  <option value="disabled">معطلة (غير متاحة)</option>
+                </select>
+              </div>
+
+              {pricingModalError && (
+                <div className="card-error-msg" style={{ margin: '4px 0 0 0' }}>
+                  <AlertCircle size={14} />
+                  <span>{pricingModalError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <button 
+                  type="submit" 
+                  className="btn-submit-google" 
+                  style={{ flex: 1, margin: 0 }}
+                  disabled={savingPricing}
+                >
+                  {savingPricing ? 'جاري الحفظ...' : 'حفظ السعر'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setIsPricingModalOpen(false)}
+                  className="clear-form-link"
+                  style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '8px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                  disabled={savingPricing}
                 >
                   إلغاء
                 </button>

@@ -132,494 +132,77 @@ Pricing
 ========================= */
 
 function calculatePricing(generation, subjectsCount, printType, modelsCount) {
-generation = toText(generation);
-printType = toText(printType);
-modelsCount = parseInt(modelsCount, 10) || 0;
-subjectsCount = parseInt(subjectsCount, 10) || 0;
+  generation = toText(generation);
+  printType = toText(printType);
+  modelsCount = parseInt(modelsCount, 10) || 0;
+  subjectsCount = parseInt(subjectsCount, 10) || 0;
 
-if (!generation || subjectsCount <= 0 || !printType || !modelsCount) {
-return {
-available: false,
-materialsPrice: 0,
-deliveryFee: 0,
-total: 0,
-message: "بيانات التسعير غير مكتملة."
-};
-}
-
-var genKey = getGenerationKey(generation);
-
-var printTypeTable = PRICING_TABLE[genKey]
-? PRICING_TABLE[genKey][printType]
-: null;
-
-if (!printTypeTable) {
-return {
-available: false,
-materialsPrice: 0,
-deliveryFee: 0,
-total: 0,
-message: "نوع الطباعة غير متاح لهذا الجيل."
-};
-}
-
-var modelsTable = printTypeTable[modelsCount];
-
-if (!modelsTable) {
-return {
-available: false,
-materialsPrice: 0,
-deliveryFee: 0,
-total: 0,
-message: "عدد النماذج غير متاح لهذا الاختيار."
-};
-}
-
-var materialsPrice = 0;
-var available = false;
-
-if (genKey === "2008") {
-var pricePerSubject = modelsTable[1];
-
-if (pricePerSubject !== undefined) {
-  materialsPrice = Number(pricePerSubject) * subjectsCount;
-  available = true;
-}
-
-} else {
-var price = modelsTable[subjectsCount];
-
-if (price !== undefined) {
-  materialsPrice = Number(price);
-  available = true;
-}
-
-}
-
-if (!available) {
-return {
-available: false,
-materialsPrice: 0,
-deliveryFee: 0,
-total: 0,
-message: "لا يوجد عرض متاح لهذا العدد من المواد."
-};
-}
-
-var deliveryFee = 1;
-var total = materialsPrice + deliveryFee;
-
-return {
-available: true,
-materialsPrice: roundPrice(materialsPrice),
-deliveryFee: roundPrice(deliveryFee),
-total: roundPrice(total),
-message: ""
-};
-}
-
-function getGenerationKey(generation) {
-var value = toText(generation);
-
-if (value.indexOf("2009") !== -1) {
-return "2009";
-}
-
-if (
-value.indexOf("BTEC") !== -1 ||
-value.indexOf("btec") !== -1 ||
-value.indexOf("بيتيك") !== -1
-) {
-return "BTEC";
-}
-
-return "2008";
-}
-
-function roundPrice(value) {
-return Math.round(Number(value || 0) * 100) / 100;
-}
-
-/* =========================
-Subjects
-========================= */
-
-function getOrCreateSubjectsSheet() {
-var ss = SpreadsheetApp.getActiveSpreadsheet();
-var sheet = ss.getSheetByName("Subjects");
-
-if (!sheet) {
-sheet = ss.insertSheet("Subjects");
-
-var headers = [
-  "id",
-  "name",
-  "price",
-  "description",
-  "category",
-  "status",
-  "sortOrder",
-  "createdAt",
-  "updatedAt"
-];
-
-sheet.appendRow(headers);
-
-var now = new Date();
-
-var initialSubjects = [
-  // 2009
-  ["arabic-2009", "مادة لغة عربية", "", "", "2009", "active", 1, now, now],
-  ["english-2009", "مادة إنجليزي", "", "", "2009", "active", 2, now, now],
-  ["jordan-history-2009", "مادة تاريخ الأردن", "", "", "2009", "active", 3, now, now],
-  ["islamic-2009", "مادة تربية إسلامية", "", "", "2009", "active", 4, now, now],
-
-  // BTEC
-  ["english-btec", "مادة إنجليزي", "", "", "BTEC", "active", 1, now, now],
-  ["arabic-btec", "مادة لغة عربية", "", "", "BTEC", "active", 2, now, now],
-  ["jordan-history-btec", "مادة تاريخ الأردن", "", "", "BTEC", "active", 3, now, now],
-  ["islamic-btec", "مادة تربية إسلامية", "", "", "BTEC", "active", 4, now, now],
-
-  // 2008
-  ["financial-2008", "مادة ثقافة مالية", "", "التوصيل يوم الخميس 2/7", "2008", "active", 1, now, now],
-  ["english-advanced-2008", "مادة إنجليزي متقدم 2008", "", "التوصيل يوم الأحد 5/7", "2008", "active", 2, now, now],
-  ["physics-2008", "مادة فيزياء", "", "التوصيل يوم الثلاثاء 7/7", "2008", "active", 3, now, now],
-  ["chemistry-2008", "مادة كيمياء", "", "التوصيل يوم الخميس 9/7", "2008", "active", 4, now, now],
-  ["history-2008", "مادة تاريخ 2008", "", "التوصيل يوم الخميس 9/7", "2008", "active", 5, now, now],
-  ["earth-science-2008", "مادة علوم الأرض", "", "التوصيل يوم الإثنين 13/7", "2008", "active", 6, now, now],
-  ["philosophy-2008", "مادة فلسفة", "", "التوصيل يوم الإثنين 13/7", "2008", "active", 7, now, now],
-  ["arabic-2008", "مادة لغة عربية 2008", "", "التوصيل يوم الأربعاء 15/7", "2008", "active", 8, now, now],
-  ["biology-2008", "مادة علوم حياتية", "", "التوصيل يوم الخميس 16/7", "2008", "active", 9, now, now]
-];
-
-for (var i = 0; i < initialSubjects.length; i++) {
-  sheet.appendRow(initialSubjects[i]);
-}
-
-}
-
-return sheet;
-}
-
-function getSubjects() {
-try {
-var sheet = getOrCreateSubjectsSheet();
-var lastRow = sheet.getLastRow();
-
-if (lastRow <= 1) {
-  return {
-    success: true,
-    subjects: []
-  };
-}
-
-var values = sheet.getRange(2, 1, lastRow - 1, 9).getDisplayValues();
-var subjects = [];
-
-for (var i = 0; i < values.length; i++) {
-  var row = values[i];
-  var status = toText(row[5]) || "active";
-
-  if (status !== "hidden") {
-    subjects.push({
-      id: toText(row[0]),
-      name: toText(row[1]),
-      price: toText(row[2]),
-      description: toText(row[3]),
-      category: toText(row[4]),
-      status: status,
-      sortOrder: parseInt(row[6], 10) || 99
-    });
+  if (!generation || subjectsCount <= 0 || !printType || !modelsCount) {
+    return {
+      available: false,
+      materialsPrice: 0,
+      deliveryFee: 0,
+      total: 0,
+      message: "بيانات التسعير غير مكتملة."
+    };
   }
-}
 
-subjects.sort(sortSubjects);
-
-return {
-  success: true,
-  subjects: subjects
-};
-
-} catch (error) {
-return {
-success: false,
-message: "فشل جلب المواد: " + safeError(error),
-stack: error.stack || ""
-};
-}
-}
-
-function adminGetSubjects() {
-try {
-var sheet = getOrCreateSubjectsSheet();
-var lastRow = sheet.getLastRow();
-
-if (lastRow <= 1) {
-  return {
-    success: true,
-    subjects: []
-  };
-}
-
-var values = sheet.getRange(2, 1, lastRow - 1, 9).getDisplayValues();
-var subjects = [];
-
-for (var i = 0; i < values.length; i++) {
-  var row = values[i];
-
-  subjects.push({
-    id: toText(row[0]),
-    name: toText(row[1]),
-    price: toText(row[2]),
-    description: toText(row[3]),
-    category: toText(row[4]),
-    status: toText(row[5]) || "active",
-    sortOrder: parseInt(row[6], 10) || 99,
-    createdAt: toText(row[7]),
-    updatedAt: toText(row[8])
-  });
-}
-
-subjects.sort(sortSubjects);
-
-return {
-  success: true,
-  subjects: subjects
-};
-
-} catch (error) {
-return {
-success: false,
-message: "فشل جلب مواد الإدارة: " + safeError(error),
-stack: error.stack || ""
-};
-}
-}
-
-function adminSaveSubject(sub) {
-var lock = LockService.getScriptLock();
-
-try {
-lock.waitLock(30000);
-} catch (e) {
-return {
-success: false,
-message: "السيرفر مشغول، يرجى المحاولة مرة أخرى."
-};
-}
-
-try {
-sub = sub || {};
-
-if (!toText(sub.name)) {
-  return {
-    success: false,
-    message: "يرجى إدخال اسم المادة."
-  };
-}
-
-var sheet = getOrCreateSubjectsSheet();
-var lastRow = sheet.getLastRow();
-var subId = toText(sub.id);
-
-if (!subId) {
-  subId = "sub-" + Math.random().toString(36).substring(2, 9) + "-" + new Date().getTime();
-}
-
-var values = lastRow > 1
-  ? sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues()
-  : [];
-
-var rowIndex = -1;
-
-for (var i = 0; i < values.length; i++) {
-  if (toText(values[i][0]) === subId) {
-    rowIndex = i + 2;
-    break;
+  var genKey = getGenerationKey(generation);
+  var rules = getPricingRules();
+  
+  var matchingRule = null;
+  for (var i = 0; i < rules.length; i++) {
+    var rule = rules[i];
+    if (
+      rule.status === "active" &&
+      rule.category === genKey &&
+      rule.printType === printType &&
+      rule.modelsCount === modelsCount
+    ) {
+      if (genKey === "2008") {
+        if (rule.subjectsCount === 1) {
+          matchingRule = rule;
+          break;
+        }
+      } else {
+        if (rule.subjectsCount === subjectsCount) {
+          matchingRule = rule;
+          break;
+        }
+      }
+    }
   }
-}
 
-var now = new Date();
-
-var rowData = [
-  subId,
-  toText(sub.name),
-  toText(sub.price),
-  toText(sub.description),
-  toText(sub.category) || "2008",
-  toText(sub.status) || "active",
-  parseInt(sub.sortOrder, 10) || 99,
-  rowIndex !== -1 ? sheet.getRange(rowIndex, 8).getValue() : now,
-  now
-];
-
-if (rowIndex !== -1) {
-  sheet.getRange(rowIndex, 1, 1, 9).setValues([rowData]);
-} else {
-  sheet.appendRow(rowData);
-}
-
-return {
-  success: true,
-  message: "تم حفظ المادة بنجاح",
-  subject: {
-    id: subId
+  if (!matchingRule) {
+    var btecMsg = (genKey === "BTEC" && subjectsCount === 2) 
+      ? "لا يوجد عرض متاح لمادتين في بيتيك، يرجى اختيار مادة واحدة أو ثلاث مواد." 
+      : "لا يوجد عرض متاح لهذا الاختيار، يرجى تعديل عدد المواد أو عدد النماذج.";
+    return {
+      available: false,
+      materialsPrice: 0,
+      deliveryFee: 0,
+      total: 0,
+      message: btecMsg
+    };
   }
-};
 
-} catch (error) {
-return {
-success: false,
-message: "فشل حفظ المادة: " + safeError(error),
-stack: error.stack || ""
-};
-} finally {
-try {
-lock.releaseLock();
-} catch (err) {}
-}
-}
-
-function adminDeleteSubject(id) {
-var lock = LockService.getScriptLock();
-
-try {
-lock.waitLock(30000);
-} catch (e) {
-return {
-success: false,
-message: "السيرفر مشغول."
-};
-}
-
-try {
-var subjectId = toText(id);
-
-if (!subjectId) {
-  return {
-    success: false,
-    message: "معرّف المادة مطلوب."
-  };
-}
-
-var sheet = getOrCreateSubjectsSheet();
-var lastRow = sheet.getLastRow();
-
-if (lastRow <= 1) {
-  return {
-    success: false,
-    message: "لا يوجد مواد لحذفها."
-  };
-}
-
-var values = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
-var rowIndex = -1;
-
-for (var i = 0; i < values.length; i++) {
-  if (toText(values[i][0]) === subjectId) {
-    rowIndex = i + 2;
-    break;
+  var materialsPrice = 0;
+  if (genKey === "2008") {
+    materialsPrice = matchingRule.price * subjectsCount;
+  } else {
+    materialsPrice = matchingRule.price;
   }
-}
 
-if (rowIndex === -1) {
+  var deliveryFee = 1.0;
+  var total = materialsPrice + deliveryFee;
+
   return {
-    success: false,
-    message: "المادة غير موجودة."
+    available: true,
+    materialsPrice: materialsPrice,
+    deliveryFee: deliveryFee,
+    total: total,
+    message: ""
   };
-}
-
-sheet.getRange(rowIndex, 6).setValue("hidden");
-sheet.getRange(rowIndex, 9).setValue(new Date());
-
-return {
-  success: true,
-  message: "تم إخفاء المادة بنجاح."
-};
-
-} catch (error) {
-return {
-success: false,
-message: "فشل إخفاء المادة: " + safeError(error),
-stack: error.stack || ""
-};
-} finally {
-try {
-lock.releaseLock();
-} catch (err) {}
-}
-}
-
-function sortSubjects(a, b) {
-var catOrder = {
-"2009": 1,
-"BTEC": 2,
-"2008": 3,
-"closed": 4
-};
-
-var orderA = catOrder[a.category] || 99;
-var orderB = catOrder[b.category] || 99;
-
-if (orderA !== orderB) {
-return orderA - orderB;
-}
-
-return (a.sortOrder || 99) - (b.sortOrder || 99);
-}
-
-/* =========================
-Orders
-========================= */
-
-function getOrderHeaders() {
-return [
-"التاريخ والوقت",
-"رقم الطلب",
-"الاسم الكامل",
-"الصف / الجيل",
-"المحافظة",
-"المنطقة / العنوان التفصيلي",
-"رقم موبايل للتواصل",
-"رقم واتساب للتواصل",
-"رقم هاتف آخر",
-"المواد المطلوبة",
-"مواد أخرى",
-"سعر بكج المادة",
-"تأكيد سعر التوصيل",
-"ملاحظات أخرى",
-"نوع الطباعة",
-"عدد النماذج لكل مادة",
-"سعر المواد",
-"سعر التوصيل",
-"الإجمالي الكلي",
-"الحالة",
-"آخر تعديل",
-"عدد مرات التعديل"
-];
-}
-
-function getOrCreateOrdersSheet() {
-var ss = SpreadsheetApp.getActiveSpreadsheet();
-var sheet = ss.getSheetByName("Orders");
-var headers = getOrderHeaders();
-
-if (!sheet) {
-sheet = ss.insertSheet("Orders");
-sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-sheet.setFrozenRows(1);
-} else {
-var currentCols = sheet.getLastColumn();
-
-if (currentCols < headers.length) {
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-}
-
-}
-
-formatPhoneColumnsAsText(sheet);
-
-return sheet;
 }
 
 function submitOrder(data) {
@@ -1101,4 +684,276 @@ digits = digits.substring(1);
 }
 
 return digits;
+}
+
+
+/* ========================================================
+   Migration & Dynamic Pricing Sheets Functions
+   ======================================================== */
+
+function migrateBtecSubjects(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return;
+  
+  var range = sheet.getRange(2, 1, lastRow - 1, 9);
+  var values = range.getValues();
+  var changed = false;
+  
+  for (var i = 0; i < values.length; i++) {
+    var category = String(values[i][4]).trim();
+    if (category === "BTEC") {
+      var name = String(values[i][1]).trim();
+      var currentStatus = String(values[i][5]).trim();
+      var currentDesc = String(values[i][3]).trim();
+      var newStatus = currentStatus;
+      var newDesc = currentDesc;
+      
+      // إذا كان يحتوي على إنجليزي أو English
+      if (name.indexOf("إنجليزي") !== -1 || name.toLowerCase().indexOf("english") !== -1) {
+        newStatus = "disabled";
+        newDesc = "";
+      } else {
+        newDesc = "";
+      }
+      
+      if (currentStatus !== newStatus || currentDesc !== newDesc) {
+        values[i][5] = newStatus;
+        values[i][3] = newDesc;
+        values[i][8] = new Date();
+        changed = true;
+      }
+    }
+  }
+  
+  if (changed) {
+    range.setValues(values);
+  }
+}
+
+function getOrCreatePricingSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Pricing");
+  
+  if (!sheet) {
+    sheet = ss.insertSheet("Pricing");
+    
+    var headers = [
+      "category",
+      "printType",
+      "modelsCount",
+      "subjectsCount",
+      "price",
+      "status",
+      "updatedAt"
+    ];
+    sheet.appendRow(headers);
+    ensurePricingInitialized(sheet);
+  }
+  
+  return sheet;
+}
+
+function ensurePricingInitialized(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) return;
+  
+  var now = new Date();
+  
+  var initialPricing = [
+    // 2009 black_white
+    ["2009", "black_white", 2, 4, 3.5, "active", now],
+    ["2009", "black_white", 4, 4, 5.5, "active", now],
+    ["2009", "black_white", 6, 4, 7.5, "active", now],
+    ["2009", "black_white", 8, 1, 3.5, "active", now],
+    ["2009", "black_white", 8, 2, 5.5, "active", now],
+    ["2009", "black_white", 8, 3, 7.5, "active", now],
+    ["2009", "black_white", 8, 4, 8.5, "active", now],
+    ["2009", "black_white", 10, 4, 9.5, "active", now],
+
+    // 2009 color
+    ["2009", "color", 2, 4, 4.5, "active", now],
+    ["2009", "color", 4, 4, 7, "active", now],
+    ["2009", "color", 6, 4, 9.5, "active", now],
+    ["2009", "color", 8, 1, 4.5, "active", now],
+    ["2009", "color", 8, 2, 7, "active", now],
+    ["2009", "color", 8, 3, 9.5, "active", now],
+    ["2009", "color", 8, 4, 11, "active", now],
+    ["2009", "color", 10, 4, 13, "active", now],
+
+    // BTEC black_white
+    ["BTEC", "black_white", 2, 3, 3.5, "active", now],
+    ["BTEC", "black_white", 4, 3, 5, "active", now],
+    ["BTEC", "black_white", 6, 3, 6, "active", now],
+    ["BTEC", "black_white", 8, 1, 3.5, "active", now],
+    ["BTEC", "black_white", 8, 3, 7, "active", now],
+
+    // BTEC color
+    ["BTEC", "color", 2, 3, 4.5, "active", now],
+    ["BTEC", "color", 4, 3, 6.5, "active", now],
+    ["BTEC", "color", 6, 3, 8, "active", now],
+    ["BTEC", "color", 8, 1, 4.5, "active", now],
+    ["BTEC", "color", 8, 3, 9.5, "active", now],
+
+    // 2008 black_white
+    ["2008", "black_white", 4, 1, 2.5, "active", now],
+    ["2008", "black_white", 8, 1, 4, "active", now],
+    ["2008", "black_white", 10, 1, 5, "active", now],
+
+    // 2008 color
+    ["2008", "color", 4, 1, 3.5, "active", now],
+    ["2008", "color", 8, 1, 5.5, "active", now],
+    ["2008", "color", 10, 1, 7, "active", now]
+  ];
+  
+  for (var i = 0; i < initialPricing.length; i++) {
+    sheet.appendRow(initialPricing[i]);
+  }
+}
+
+function getPricingRules() {
+  try {
+    var sheet = getOrCreatePricingSheet();
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return [];
+    
+    var values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+    var rules = [];
+    
+    for (var i = 0; i < values.length; i++) {
+      var row = values[i];
+      rules.push({
+        category: String(row[0]).trim(),
+        printType: String(row[1]).trim(),
+        modelsCount: Number(row[2]) || 0,
+        subjectsCount: Number(row[3]) || 0,
+        price: Number(row[4]) || 0,
+        status: String(row[5]).trim(),
+        updatedAt: row[6]
+      });
+    }
+    return rules;
+  } catch (error) {
+    console.error("Error in getPricingRules:", error);
+    return [];
+  }
+}
+
+function adminGetPricing() {
+  try {
+    var rules = getPricingRules();
+    return {
+      success: true,
+      pricing: rules
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: "فشل جلب قائمة الأسعار: " + safeError(error)
+    };
+  }
+}
+
+function adminSavePricing(rule) {
+  try {
+    var sheet = getOrCreatePricingSheet();
+    var lastRow = sheet.getLastRow();
+    
+    var category = String(rule.category || "").trim();
+    var printType = String(rule.printType || "").trim();
+    var modelsCount = Number(rule.modelsCount) || 0;
+    var subjectsCount = Number(rule.subjectsCount) || 0;
+    var price = Number(rule.price) || 0;
+    var status = String(rule.status || "active").trim();
+    var now = new Date();
+    
+    if (!category || !printType || !modelsCount || !subjectsCount) {
+      return { success: false, message: "بيانات غير مكتملة لحفظ قاعدة التسعير." };
+    }
+    
+    var foundIndex = -1;
+    if (lastRow > 1) {
+      var values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+      for (var i = 0; i < values.length; i++) {
+        if (
+          String(values[i][0]).trim() === category &&
+          String(values[i][1]).trim() === printType &&
+          Number(values[i][2]) === modelsCount &&
+          Number(values[i][3]) === subjectsCount
+        ) {
+          foundIndex = i + 2;
+          break;
+        }
+      }
+    }
+    
+    if (foundIndex !== -1) {
+      sheet.getRange(foundIndex, 5).setValue(price);
+      sheet.getRange(foundIndex, 6).setValue(status);
+      sheet.getRange(foundIndex, 7).setValue(now);
+    } else {
+      sheet.appendRow([category, printType, modelsCount, subjectsCount, price, status, now]);
+    }
+    
+    return {
+      success: true,
+      message: "تم حفظ قاعدة التسعير بنجاح."
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: "فشل حفظ قاعدة التسعير: " + safeError(error)
+    };
+  }
+}
+
+function adminDisablePricing(rule) {
+  try {
+    var sheet = getOrCreatePricingSheet();
+    var lastRow = sheet.getLastRow();
+    
+    var category = String(rule.category || "").trim();
+    var printType = String(rule.printType || "").trim();
+    var modelsCount = Number(rule.modelsCount) || 0;
+    var subjectsCount = Number(rule.subjectsCount) || 0;
+    var now = new Date();
+    
+    if (!category || !printType || !modelsCount || !subjectsCount) {
+      return { success: false, message: "بيانات غير مكتملة لتعطيل قاعدة التسعير." };
+    }
+    
+    var foundIndex = -1;
+    if (lastRow > 1) {
+      var values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+      for (var i = 0; i < values.length; i++) {
+        if (
+          String(values[i][0]).trim() === category &&
+          String(values[i][1]).trim() === printType &&
+          Number(values[i][2]) === modelsCount &&
+          Number(values[i][3]) === subjectsCount
+        ) {
+          foundIndex = i + 2;
+          break;
+        }
+      }
+    }
+    
+    if (foundIndex !== -1) {
+      sheet.getRange(foundIndex, 6).setValue("disabled");
+      sheet.getRange(foundIndex, 7).setValue(now);
+      return {
+        success: true,
+        message: "تم تعطيل قاعدة التسعير بنجاح."
+      };
+    } else {
+      return {
+        success: false,
+        message: "لم يتم العثور على قاعدة التسعير المطلوبة."
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: "فشل تعطيل قاعدة التسعير: " + safeError(error)
+    };
+  }
 }

@@ -19,8 +19,8 @@ export interface FormState {
   whatsappPhone: string;
   otherPhone: string;
   subjects: string[];
-  otherSubject: string;
-  packagePrice: string; // محتفظ بها لتوافق البنية
+  otherSubject: string; // تُرسل دائمًا فارغة ""
+  packagePrice: string; // لتوافق البنية
   deliveryConfirm: string; // "تم ✅" or ""
   notes: string;
   printType: string;
@@ -33,8 +33,17 @@ interface Subject {
   price: string;
   description: string;
   category: string;
-  status: string; // active | disabled
+  status: string; // active | disabled | hidden
   sortOrder: number;
+}
+
+interface PricingRule {
+  category: string;
+  printType: string;
+  modelsCount: number;
+  subjectsCount: number;
+  price: number;
+  status: string;
 }
 
 const GOVERNORATES = [
@@ -51,51 +60,6 @@ const GOVERNORATES = [
   'معان',
   'العقبة'
 ];
-
-export const PRICING_TABLE: Record<string, Record<string, Record<number, Record<number, number>>>> = {
-  "2009": {
-    black_white: {
-      2: { 4: 3.5 },
-      4: { 4: 5.5 },
-      6: { 4: 7.5 },
-      8: { 1: 3.5, 2: 5.5, 3: 7.5, 4: 8.5 },
-      10: { 4: 9.5 }
-    },
-    color: {
-      2: { 4: 4.5 },
-      4: { 4: 7 },
-      6: { 4: 9.5 },
-      8: { 1: 4.5, 2: 7, 3: 9.5, 4: 11 },
-      10: { 4: 13 }
-    }
-  },
-  "BTEC": {
-    black_white: {
-      2: { 3: 3.5 },
-      4: { 3: 5 },
-      6: { 3: 6 },
-      8: { 1: 3.5, 3: 7 }
-    },
-    color: {
-      2: { 3: 4.5 },
-      4: { 3: 6.5 },
-      6: { 3: 8 },
-      8: { 1: 4.5, 3: 9.5 }
-    }
-  },
-  "2008": {
-    black_white: {
-      4: { 1: 2.5 },
-      8: { 1: 4 },
-      10: { 1: 5 }
-    },
-    color: {
-      4: { 1: 3.5 },
-      8: { 1: 5.5 },
-      10: { 1: 7 }
-    }
-  }
-};
 
 const safeText = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -151,27 +115,36 @@ const filterSubjectsByGeneration = (list: Subject[], gen: string): Subject[] => 
   });
 };
 
-export const getAvailableModelsCounts = (
+export const getAvailableModelsCountsFromRules = (
   generation: string,
   subjectsCount: number,
-  printType: string
+  printType: string,
+  rules: PricingRule[]
 ): number[] => {
   if (!generation || subjectsCount <= 0 || !printType) return [];
   const genKey = generation.includes('2009') ? '2009' : (generation.includes('BTEC') || generation.includes('بيتيك') ? 'BTEC' : '2008');
-  const printTypeTable = PRICING_TABLE[genKey]?.[printType];
-  if (!printTypeTable) return [];
   
-  return Object.keys(printTypeTable)
-    .map(Number)
-    .filter(modelsCount => {
-      const modelsTable = printTypeTable[modelsCount];
-      if (!modelsTable) return false;
+  const counts = new Set<number>();
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i];
+    if (
+      rule.status === "active" &&
+      rule.category === genKey &&
+      rule.printType === printType
+    ) {
       if (genKey === '2008') {
-        return modelsTable[1] !== undefined;
+        if (rule.subjectsCount === 1) {
+          counts.add(rule.modelsCount);
+        }
       } else {
-        return modelsTable[subjectsCount] !== undefined;
+        if (rule.subjectsCount === subjectsCount) {
+          counts.add(rule.modelsCount);
+        }
       }
-    });
+    }
+  }
+  
+  return Array.from(counts).sort((a, b) => a - b);
 };
 
 interface PricingResult {
@@ -182,16 +155,18 @@ interface PricingResult {
   message: string;
 }
 
-export const calculatePricing = ({
+export const calculatePricingFromRules = ({
   generation,
   subjectsCount,
   printType,
-  modelsCount
+  modelsCount,
+  rules
 }: {
   generation: string;
   subjectsCount: number;
   printType: string;
   modelsCount: number;
+  rules: PricingRule[];
 }): PricingResult => {
   if (!generation || subjectsCount <= 0 || !printType || !modelsCount) {
     return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0, message: "يرجى اختيار المواد ونوع الطباعة وعدد النماذج." };
@@ -199,41 +174,47 @@ export const calculatePricing = ({
   
   const genKey = generation.includes('2009') ? '2009' : (generation.includes('BTEC') || generation.includes('بيتيك') ? 'BTEC' : '2008');
   
-  const printTypeTable = PRICING_TABLE[genKey]?.[printType];
-  if (!printTypeTable) {
-    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0, message: "خيارات الطباعة غير متوفرة." };
-  }
-  
-  const modelsTable = printTypeTable[modelsCount];
-  if (!modelsTable) {
-    return { available: false, materialsPrice: 0, deliveryFee: 0, total: 0, message: "هذا العرض غير متوفر لهذا الجيل." };
-  }
-  
-  let materialsPrice = 0;
-  let available = false;
-  
-  if (genKey === '2008') {
-    const pricePerSubject = modelsTable[1];
-    if (pricePerSubject !== undefined) {
-      materialsPrice = pricePerSubject * subjectsCount;
-      available = true;
-    }
-  } else {
-    const price = modelsTable[subjectsCount];
-    if (price !== undefined) {
-      materialsPrice = price;
-      available = true;
+  let matchingRule: PricingRule | null = null;
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i];
+    if (
+      rule.status === "active" &&
+      rule.category === genKey &&
+      rule.printType === printType &&
+      rule.modelsCount === modelsCount
+    ) {
+      if (genKey === "2008") {
+        if (rule.subjectsCount === 1) {
+          matchingRule = rule;
+          break;
+        }
+      } else {
+        if (rule.subjectsCount === subjectsCount) {
+          matchingRule = rule;
+          break;
+        }
+      }
     }
   }
-  
-  if (!available) {
+
+  if (!matchingRule) {
+    const btecMsg = (genKey === "BTEC" && subjectsCount === 2) 
+      ? "لا يوجد عرض متاح لمادتين في بيتيك، يرجى اختيار مادة واحدة أو ثلاث مواد." 
+      : "لا يوجد عرض متاح لهذا الاختيار، يرجى تعديل عدد المواد أو عدد النماذج.";
     return {
       available: false,
       materialsPrice: 0,
       deliveryFee: 0,
       total: 0,
-      message: "لا يوجد عرض متاح لهذا الاختيار، يرجى تعديل عدد المواد أو عدد النماذج."
+      message: btecMsg
     };
+  }
+
+  let materialsPrice = 0;
+  if (genKey === "2008") {
+    materialsPrice = matchingRule.price * subjectsCount;
+  } else {
+    materialsPrice = matchingRule.price;
   }
   
   const deliveryFee = 1.0;
@@ -268,7 +249,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     whatsappPhone: '',
     otherPhone: '',
     subjects: [],
-    otherSubject: '',
+    otherSubject: '', // تُرسل دائمًا فارغة
     packagePrice: '',
     deliveryConfirm: '',
     notes: '',
@@ -277,15 +258,16 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   });
 
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
+  const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [subjectsError, setSubjectsError] = useState('');
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'api' | 'subjectsList', string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // جلب المواد من السيرفر عند التحميل
+  // جلب المواد والأسعار من السيرفر عند التحميل
   useEffect(() => {
-    const loadSubjects = async () => {
+    const loadSubjectsAndPricing = async () => {
       try {
         const response = await fetch('/api/get-subjects');
         const result = await response.json();
@@ -293,6 +275,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         if (response.ok && result.success) {
           const normalized = (result.subjects || []).map(normalizeSubject);
           setAllSubjects(normalized);
+          setPricingRules(result.pricing || []);
         } else {
           setSubjectsError(result.message || 'تعذر تحميل المواد، يرجى تحديث الصفحة أو المحاولة لاحقًا.');
         }
@@ -302,7 +285,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         setLoadingSubjects(false);
       }
     };
-    loadSubjects();
+    loadSubjectsAndPricing();
   }, []);
 
   // تهيئة البيانات عند التعديل
@@ -319,7 +302,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         whatsappPhone: wa,
         otherPhone: safeText(initialData.otherPhone),
         subjects: Array.isArray(initialData.subjects) ? initialData.subjects : [],
-        otherSubject: safeText(initialData.otherSubject),
+        otherSubject: '',
         packagePrice: '',
         deliveryConfirm: safeText(initialData.deliveryConfirm),
         notes: safeText(initialData.notes),
@@ -358,7 +341,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       }));
     } else if (name === 'printType') {
       setFormData(prev => {
-        const availableCounts = getAvailableModelsCounts(prev.generation, prev.subjects.length, value);
+        const availableCounts = getAvailableModelsCountsFromRules(prev.generation, prev.subjects.length, value, pricingRules);
         let nextModelsCount = prev.modelsCount;
         if (nextModelsCount && !availableCounts.includes(Number(nextModelsCount))) {
           nextModelsCount = '';
@@ -388,7 +371,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         newSubjects = [...prev.subjects, subjectName];
       }
 
-      const availableCounts = getAvailableModelsCounts(prev.generation, newSubjects.length, prev.printType);
+      const availableCounts = getAvailableModelsCountsFromRules(prev.generation, newSubjects.length, prev.printType, pricingRules);
       let nextModelsCount = prev.modelsCount;
       if (nextModelsCount && !availableCounts.includes(Number(nextModelsCount))) {
         nextModelsCount = '';
@@ -410,7 +393,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   const validateStep1 = (): boolean => {
     const newErrors: Partial<Record<keyof FormState | 'subjectsList', string>> = {};
     if (!formData.generation) newErrors.generation = 'يرجى اختيار الصف / الجيل';
-    if (formData.subjects.length === 0 && !safeText(formData.otherSubject)) {
+    if (formData.subjects.length === 0) {
       newErrors.subjectsList = 'يرجى اختيار مادة واحدة على الأقل';
     }
     if (formData.subjects.length > 0) {
@@ -423,11 +406,12 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
     // التأكد من توفر عرض تسعير
     if (formData.subjects.length > 0) {
-      const pricing = calculatePricing({
+      const pricing = calculatePricingFromRules({
         generation: formData.generation,
         subjectsCount: formData.subjects.length,
         printType: formData.printType,
-        modelsCount: Number(formData.modelsCount)
+        modelsCount: Number(formData.modelsCount),
+        rules: pricingRules
       });
       return pricing.available;
     }
@@ -477,6 +461,23 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleNextStep = () => {
+    if (step === 1 && validateStep1()) {
+      setStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (step === 2 && validateStep2()) {
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (step > 1) {
+      setStep(step - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const handleFormReset = () => {
     if (window.confirm('هل أنت متأكد من رغبتك في إخلاء النموذج وإعادة كتابته؟')) {
       setFormData({
@@ -501,23 +502,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   };
 
-  const handleNextStep = () => {
-    if (step === 1 && validateStep1()) {
-      setStep(2);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (step === 2 && validateStep2()) {
-      setStep(3);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  const handlePrevStep = () => {
-    if (step > 1) {
-      setStep(step - 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -528,11 +512,12 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     setIsSubmitting(true);
     setErrors({});
 
-    const pricing = calculatePricing({
+    const pricing = calculatePricingFromRules({
       generation: formData.generation,
       subjectsCount: formData.subjects.length,
       printType: formData.printType,
-      modelsCount: Number(formData.modelsCount)
+      modelsCount: Number(formData.modelsCount),
+      rules: pricingRules
     });
 
     try {
@@ -544,14 +529,14 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           body: JSON.stringify({
             orderNumber: orderNumber,
             phone: editPhone,
-            data: formData
+            data: { ...formData, otherSubject: "" }
           }),
         });
       } else {
         response = await fetch('/api/submit-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({ ...formData, otherSubject: "" }),
         });
       }
 
@@ -581,24 +566,28 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   const filteredSubjects = filterSubjectsByGeneration(allSubjects, formData.generation);
 
   // حساب أرقام النماذج المتوفرة للخيارات الحالية
-  const availableCounts = getAvailableModelsCounts(
+  const availableCounts = getAvailableModelsCountsFromRules(
     formData.generation,
     formData.subjects.length,
-    formData.printType
+    formData.printType,
+    pricingRules
   );
 
   // حساب التسعير التلقائي الفوري للملخص
-  const pricing = calculatePricing({
+  const pricing = calculatePricingFromRules({
     generation: formData.generation,
     subjectsCount: formData.subjects.length,
     printType: formData.printType,
-    modelsCount: Number(formData.modelsCount)
+    modelsCount: Number(formData.modelsCount),
+    rules: pricingRules
   });
+
+  const hasPricingError = pricingRules.length === 0 && !loadingSubjects && !subjectsError;
 
   return (
     <div className={`form-container ${pricing.available ? 'has-sticky-bar' : ''}`}>
       
-      {/* شريط تقدم الخطوات (Stepped Progress Bar) للمكتب/الشاشات الكبيرة */}
+      {/* شريط تقدم الخطوات للمكتب/الشاشات الكبيرة */}
       <div className="wizard-progress">
         {[
           { num: 1, label: 'الامتحانات 📚' },
@@ -633,6 +622,13 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           <div className="global-error-alert" style={{ marginBottom: '12px' }}>
             <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
             <span>{errors.api}</span>
+          </div>
+        )}
+
+        {hasPricingError && (
+          <div className="global-error-alert" style={{ marginBottom: '12px' }}>
+            <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <span>تعذر تحميل الأسعار، يرجى تحديث الصفحة أو المحاولة لاحقًا.</span>
           </div>
         )}
 
@@ -706,6 +702,9 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     const isDisabled = subject.status === 'disabled';
                     const { title, details } = parseSubjectName(subject.name);
 
+                    // مادة إنجليزي BTEC معطلة ولها وصف خاص
+                    const isBtec = formData.generation.includes('BTEC') || formData.generation.includes('بيتيك');
+                    
                     return (
                       <div 
                         key={subject.id}
@@ -733,11 +732,19 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                         <div className="option-label" style={{ paddingRight: '28px' }}>
                           <div style={{ fontWeight: 600, color: isDisabled ? 'var(--text-muted)' : 'var(--text-color)' }}>
                             {title}
-                            {isDisabled && <span style={{ marginRight: '8px', fontSize: '0.8rem', color: '#d93025', fontWeight: 700 }}>(انتهى التقديم)</span>}
                           </div>
-                          {(subject.description || details) && (
+                          
+                          {/* عرض أوقات التوصيل / الوصف فقط لغير BTEC */}
+                          {!isBtec && (subject.description || details) && (
                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 400 }}>
                               {subject.description || details}
+                            </div>
+                          )}
+
+                          {/* في حال كانت المادة معطلة */}
+                          {isDisabled && (
+                            <div style={{ fontSize: '0.8rem', color: '#d93025', marginTop: '2px', fontWeight: 700 }}>
+                              غير متاحة حاليًا
                             </div>
                           )}
                         </div>
@@ -746,21 +753,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                   })}
                 </div>
               )}
-
-              <div style={{ marginTop: '20px' }}>
-                <label htmlFor="otherSubject" className="question-title" style={{ fontSize: '0.9rem' }}>
-                  أو إذا اخترت مواد أخرى، اكتبها هنا
-                </label>
-                <input
-                  id="otherSubject"
-                  type="text"
-                  name="otherSubject"
-                  value={formData.otherSubject}
-                  onChange={handleInputChange}
-                  placeholder="اكتب أسماء المواد الإضافية هنا..."
-                  className="input-text-field other-subject-input"
-                />
-              </div>
 
               {errors.subjectsList && (
                 <div className="card-error-msg">
@@ -776,12 +768,12 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                 <span className="question-title required">نوع الطباعة</span>
                 <div className="selection-cards-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
                   {[
-                    { key: 'black_white', label: 'أبيض وأسود', desc: 'طباعة كلاسيكية واضحة' },
-                    { key: 'color', label: 'ملون 🌈', desc: 'ألوان كاملة ممتازة' }
+                    { key: 'black_white', label: 'أبيض وأسود', desc: 'طباعة أحادية واضحة وعالية التباين', className: 'print-type-bw' },
+                    { key: 'color', label: 'ملون', desc: 'طباعة ملونة كاملة لتوضيح أدق التفاصيل', className: 'print-type-color' }
                   ].map(option => (
                     <div 
                       key={option.key} 
-                      className={`large-selection-card ${formData.printType === option.key ? 'selected' : ''}`}
+                      className={`large-selection-card ${option.className} ${formData.printType === option.key ? 'selected' : ''}`}
                       onClick={() => handleRadioSelect('printType', option.key)}
                     >
                       <span className="large-selection-card-title">{option.label}</span>
@@ -876,7 +868,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
               </div>
             )}
 
-            {/* زر الانتقال لـ 2 */}
+            {/* أزرار خطوة 1 */}
             <div className="footer-row" style={{ gap: '12px' }}>
               <button 
                 type="button" 
@@ -1141,7 +1133,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
               />
             </div>
 
-            {/* مراجعة الطلب قبل الإرسال (Order Review Card) */}
+            {/* مراجعة الطلب قبل الإرسال */}
             <div className="form-card" style={{ border: '2px solid var(--google-purple)', backgroundColor: '#faf9fc' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <Receipt size={20} style={{ color: 'var(--google-purple)' }} />

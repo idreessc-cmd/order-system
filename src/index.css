@@ -828,4 +828,66 @@ body {
   }
 }
 
+/* Custom print type card selected states */
+.large-selection-card.print-type-bw.selected {
+  background: #202124 !important;
+  border-color: #5f6368 !important;
+  box-shadow: 0 0 0 2px #202124 !important;
+}
+.large-selection-card.print-type-bw.selected .large-selection-card-title {
+  color: #ffffff !important;
+}
+.large-selection-card.print-type-bw.selected .large-selection-card-desc {
+  color: #dadce0 !important;
+}
+
+.large-selection-card.print-type-color.selected {
+  background: linear-gradient(135deg, #fff2f2 0%, #f0f4ff 50%, #f7f0ff 100%) !important;
+  border-color: #e066ff !important;
+  box-shadow: 0 0 0 2px #d149ff !important;
+}
+.large-selection-card.print-type-color.selected .large-selection-card-title {
+  color: #8b00dd !important;
+}
+.large-selection-card.print-type-color.selected .large-selection-card-desc {
+  color: #a35dcd !important;
+}
+
+/* Admin Tabs Layout */
+.admin-tabs-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 8px;
+  box-shadow: var(--card-shadow);
+}
+
+.admin-tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.admin-tab-btn:hover {
+  background-color: var(--google-purple-light);
+  color: var(--google-purple);
+}
+
+.admin-tab-btn.active {
+  background-color: var(--google-purple);
+  color: #fff;
+}
+
+
 
