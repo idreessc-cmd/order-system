@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { AlertCircle, ArrowLeft, Receipt } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, ArrowLeft, ArrowRight, Receipt, Check } from 'lucide-react';
 
 interface OrderFormProps {
   onSubmitSuccess: (orderId: string, total: number) => void;
@@ -256,6 +256,9 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   editPhone,
   isEditMode = false
 }) => {
+  const [step, setStep] = useState<number>(1);
+  const [sameWhatsapp, setSameWhatsapp] = useState<boolean>(false);
+
   const [formData, setFormData] = useState<FormState>({
     fullName: '',
     generation: '',
@@ -269,8 +272,8 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     packagePrice: '',
     deliveryConfirm: '',
     notes: '',
-    printType: '', // القيمة الافتراضية فارغة ليتم الاختيار يدوياً
-    modelsCount: '' // فارغة
+    printType: '', 
+    modelsCount: '' 
   });
 
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
@@ -305,13 +308,15 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   // تهيئة البيانات عند التعديل
   useEffect(() => {
     if (isEditMode && initialData) {
+      const mob = safeText(initialData.mobilePhone);
+      const wa = safeText(initialData.whatsappPhone);
       setFormData({
         fullName: safeText(initialData.fullName),
         generation: safeText(initialData.generation),
         governorate: safeText(initialData.governorate),
         address: safeText(initialData.address),
-        mobilePhone: safeText(initialData.mobilePhone),
-        whatsappPhone: safeText(initialData.whatsappPhone),
+        mobilePhone: mob,
+        whatsappPhone: wa,
         otherPhone: safeText(initialData.otherPhone),
         subjects: Array.isArray(initialData.subjects) ? initialData.subjects : [],
         otherSubject: safeText(initialData.otherSubject),
@@ -321,21 +326,18 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         printType: safeText(initialData.printType),
         modelsCount: safeText(initialData.modelsCount)
       });
+      if (mob && mob === wa) {
+        setSameWhatsapp(true);
+      }
     }
   }, [isEditMode, initialData]);
 
-  // Refs للتحرك للأخطاء
-  const cardRefs = {
-    fullName: useRef<HTMLDivElement>(null),
-    generation: useRef<HTMLDivElement>(null),
-    governorate: useRef<HTMLDivElement>(null),
-    address: useRef<HTMLDivElement>(null),
-    mobilePhone: useRef<HTMLDivElement>(null),
-    whatsappPhone: useRef<HTMLDivElement>(null),
-    otherPhone: useRef<HTMLDivElement>(null),
-    subjectsList: useRef<HTMLDivElement>(null),
-    deliveryConfirm: useRef<HTMLDivElement>(null)
-  };
+  // مزامنة الواتساب إذا تم تحديد خيار التطابق
+  useEffect(() => {
+    if (sameWhatsapp) {
+      setFormData(prev => ({ ...prev, whatsappPhone: prev.mobilePhone }));
+    }
+  }, [formData.mobilePhone, sameWhatsapp]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -347,7 +349,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
   const handleRadioSelect = (name: 'generation' | 'governorate' | 'deliveryConfirm' | 'printType' | 'modelsCount', value: string) => {
     if (name === 'generation') {
-      // تفريغ المواد والخيارات والأسعار عند تغيير الجيل
       setFormData(prev => ({
         ...prev,
         generation: value,
@@ -387,7 +388,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         newSubjects = [...prev.subjects, subjectName];
       }
 
-      // تصفية عدد النماذج المتوفرة للعدد الجديد من المواد
       const availableCounts = getAvailableModelsCounts(prev.generation, newSubjects.length, prev.printType);
       let nextModelsCount = prev.modelsCount;
       if (nextModelsCount && !availableCounts.includes(Number(nextModelsCount))) {
@@ -406,76 +406,22 @@ export const OrderForm: React.FC<OrderFormProps> = ({
     }
   };
 
-  const validateForm = (): boolean => {
+  // التحقق للخطوة 1
+  const validateStep1 = (): boolean => {
     const newErrors: Partial<Record<keyof FormState | 'subjectsList', string>> = {};
-
-    if (!safeText(formData.fullName)) {
-      newErrors.fullName = 'هذا السؤال مطلوب إجباريًا';
-    }
-
-    if (!formData.generation) {
-      newErrors.generation = 'هذا السؤال مطلوب إجباريًا';
-    }
-
-    if (!formData.governorate) {
-      newErrors.governorate = 'هذا السؤال مطلوب إجباريًا';
-    }
-
-    if (!safeText(formData.address)) {
-      newErrors.address = 'هذا السؤال مطلوب إجباريًا';
-    }
-
-    const phoneRegex = /^07[789]\d{7}$/;
-    const cleanedMobile = safeText(formData.mobilePhone);
-    const cleanedWhatsapp = safeText(formData.whatsappPhone);
-    const cleanedOther = safeText(formData.otherPhone);
-
-    if (!cleanedMobile) {
-      newErrors.mobilePhone = 'هذا السؤال مطلوب إجباريًا';
-    } else if (!phoneRegex.test(cleanedMobile)) {
-      newErrors.mobilePhone = 'يرجى إدخال رقم هاتف أردني صحيح يتكون من 10 أرقام (مثال: 0791234567)';
-    }
-
-    if (!cleanedWhatsapp) {
-      newErrors.whatsappPhone = 'هذا السؤال مطلوب إجباريًا';
-    } else if (!phoneRegex.test(cleanedWhatsapp)) {
-      newErrors.whatsappPhone = 'يرجى إدخال رقم واتساب صحيح يتكون من 10 أرقام (مثال: 0791234567)';
-    }
-
-    if (!cleanedOther) {
-      newErrors.otherPhone = 'هذا السؤال مطلوب إجباريًا';
-    }
-
+    if (!formData.generation) newErrors.generation = 'يرجى اختيار الصف / الجيل';
     if (formData.subjects.length === 0 && !safeText(formData.otherSubject)) {
-      newErrors.subjectsList = 'يرجى اختيار مادة واحدة على الأقل أو كتابة مواد أخرى في الحقل المخصص';
+      newErrors.subjectsList = 'يرجى اختيار مادة واحدة على الأقل';
     }
-
     if (formData.subjects.length > 0) {
-      if (!formData.printType) {
-        newErrors.printType = 'يرجى اختيار نوع الطباعة';
-      }
-      if (!formData.modelsCount) {
-        newErrors.modelsCount = 'يرجى اختيار عدد النماذج المطلوبة';
-      }
-    }
-
-    if (!formData.deliveryConfirm) {
-      newErrors.deliveryConfirm = 'يرجى تأكيد قيمة التوصيل لإكمال الطلب';
+      if (!formData.printType) newErrors.printType = 'يرجى تحديد نوع الطباعة';
+      if (!formData.modelsCount) newErrors.modelsCount = 'يرجى تحديد عدد النماذج';
     }
 
     setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return false;
 
-    const errorKeys = Object.keys(newErrors) as Array<keyof typeof cardRefs>;
-    if (errorKeys.length > 0) {
-      const firstErrorKey = errorKeys[0];
-      const ref = cardRefs[firstErrorKey];
-      if (ref && ref.current) {
-        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-      return false;
-    }
-
-    // التحقق من توافر عرض تسعير
+    // التأكد من توفر عرض تسعير
     if (formData.subjects.length > 0) {
       const pricing = calculatePricing({
         generation: formData.generation,
@@ -483,13 +429,52 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         printType: formData.printType,
         modelsCount: Number(formData.modelsCount)
       });
-      if (!pricing.available) {
-        alert("لا يوجد عرض تسعير متاح للخيارات المحددة حالياً. يرجى تعديل عدد المواد أو اختيار خيارات متاحة.");
-        return false;
+      return pricing.available;
+    }
+    return true;
+  };
+
+  // التحقق للخطوة 2
+  const validateStep2 = (): boolean => {
+    const newErrors: Partial<Record<keyof FormState, string>> = {};
+    if (!formData.governorate) newErrors.governorate = 'هذا الحقل مطلوب';
+    if (!safeText(formData.address)) newErrors.address = 'يرجى إدخال المنطقة والعنوان بالتفصيل';
+    if (!formData.deliveryConfirm) newErrors.deliveryConfirm = 'يرجى تأكيد سعر التوصيل';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // التحقق للخطوة 3
+  const validateStep3 = (): boolean => {
+    const newErrors: Partial<Record<keyof FormState, string>> = {};
+    if (!safeText(formData.fullName)) newErrors.fullName = 'يرجى كتابة الاسم الكامل';
+    
+    const phoneRegex = /^07[789]\d{7}$/;
+    const cleanedMobile = safeText(formData.mobilePhone);
+    const cleanedWhatsapp = safeText(formData.whatsappPhone);
+    const cleanedOther = safeText(formData.otherPhone);
+
+    if (!cleanedMobile) {
+      newErrors.mobilePhone = 'هذا الحقل مطلوب';
+    } else if (!phoneRegex.test(cleanedMobile)) {
+      newErrors.mobilePhone = 'رقم هاتف غير صحيح (مثال: 0791234567)';
+    }
+
+    if (!sameWhatsapp) {
+      if (!cleanedWhatsapp) {
+        newErrors.whatsappPhone = 'هذا الحقل مطلوب';
+      } else if (!phoneRegex.test(cleanedWhatsapp)) {
+        newErrors.whatsappPhone = 'رقم واتساب غير صحيح (مثال: 0791234567)';
       }
     }
 
-    return true;
+    if (!cleanedOther) {
+      newErrors.otherPhone = 'يرجى إدخال هاتف بديل للطوارئ';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleFormReset = () => {
@@ -511,6 +496,24 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         modelsCount: ''
       });
       setErrors({});
+      setStep(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleNextStep = () => {
+    if (step === 1 && validateStep1()) {
+      setStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (step === 2 && validateStep2()) {
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (step > 1) {
+      setStep(step - 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -518,7 +521,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    if (!validateStep3()) {
       return;
     }
 
@@ -534,13 +537,10 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
     try {
       let response;
-      
       if (isEditMode) {
         response = await fetch('/api/update-order', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderNumber: orderNumber,
             phone: editPhone,
@@ -550,9 +550,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       } else {
         response = await fetch('/api/submit-order', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData),
         });
       }
@@ -574,7 +572,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
         ...prev,
         api: 'تعذر تسجيل الطلب، يرجى التحقق من اتصالك بالإنترنت ثم المحاولة مرة أخرى.'
       }));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsSubmitting(false);
     }
@@ -599,523 +596,688 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   });
 
   return (
-    <form onSubmit={handleSubmit} className="form-container" noValidate>
+    <div className={`form-container ${pricing.available ? 'has-sticky-bar' : ''}`}>
       
-      {errors.api && (
-        <div className="global-error-alert">
-          <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
-          <span>{errors.api}</span>
-        </div>
-      )}
-
-      {isEditMode && (
-        <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)', padding: '16px 24px' }}>
-          <span className="question-title" style={{ color: 'var(--google-purple)', margin: 0 }}>
-            أنت الآن تعدّل الطلب رقم: <strong>{orderNumber}</strong>
-          </span>
-        </div>
-      )}
-
-      {/* 1. الاسم الكامل */}
-      <div 
-        ref={cardRefs.fullName} 
-        className={`form-card ${errors.fullName ? 'error-state' : ''}`}
-      >
-        <label htmlFor="fullName" className="question-title required">الاسم الكامل</label>
-        <input
-          id="fullName"
-          type="text"
-          name="fullName"
-          value={formData.fullName}
-          onChange={handleInputChange}
-          placeholder="إجابتك"
-          className="input-text-field"
-          disabled={isSubmitting}
-        />
-        {errors.fullName && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.fullName}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 2. الصف / الجيل */}
-      <div 
-        ref={cardRefs.generation} 
-        className={`form-card ${errors.generation ? 'error-state' : ''}`}
-      >
-        <span className="question-title required">الصف / الجيل</span>
-        <div className="options-container">
-          {['توجيهي 2009', 'بيتيك BTEC', 'توجيهي 2008'].map(option => (
-            <div 
-              key={option} 
-              className={`option-row radio ${formData.generation === option ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-              onClick={() => !isSubmitting && handleRadioSelect('generation', option)}
-            >
-              <input 
-                type="radio" 
-                name="generation" 
-                value={option} 
-                checked={formData.generation === option} 
-                onChange={() => {}}
-                className="option-input"
-                disabled={isSubmitting}
-              />
-              <span className="option-label">{option}</span>
-            </div>
-          ))}
-        </div>
-        {errors.generation && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.generation}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 3. المحافظة */}
-      <div 
-        ref={cardRefs.governorate} 
-        className={`form-card ${errors.governorate ? 'error-state' : ''}`}
-      >
-        <label htmlFor="governorate" className="question-title required">المحافظة</label>
-        <div style={{ marginTop: '12px' }}>
-          <select
-            id="governorate"
-            name="governorate"
-            value={formData.governorate}
-            onChange={handleInputChange}
-            className="input-select-field"
-            disabled={isSubmitting}
+      {/* شريط تقدم الخطوات (Stepped Progress Bar) للمكتب/الشاشات الكبيرة */}
+      <div className="wizard-progress">
+        {[
+          { num: 1, label: 'الامتحانات 📚' },
+          { num: 2, label: 'بيانات التوصيل 📍' },
+          { num: 3, label: 'التأكيد والإرسال 📞' }
+        ].map(item => (
+          <div 
+            key={item.num} 
+            className={`wizard-step ${step === item.num ? 'active' : step > item.num ? 'completed' : ''}`}
           >
-            <option value="">اختيار</option>
-            {GOVERNORATES.map(gov => (
-              <option key={gov} value={gov}>{gov}</option>
-            ))}
-          </select>
-        </div>
-        {errors.governorate && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.governorate}</span>
+            <div className="wizard-step-circle">
+              {step > item.num ? <Check size={16} /> : item.num}
+            </div>
+            <span className="wizard-step-label">{item.label}</span>
           </div>
-        )}
+        ))}
       </div>
 
-      {/* 4. المنطقة / العنوان التفصيلي */}
-      <div 
-        ref={cardRefs.address} 
-        className={`form-card ${errors.address ? 'error-state' : ''}`}
-      >
-        <label htmlFor="address" className="question-title required">المنطقة / العنوان التفصيلي</label>
-        <input
-          id="address"
-          type="text"
-          name="address"
-          value={formData.address}
-          onChange={handleInputChange}
-          placeholder="اكتب اسم المنطقة والشارع أو معلم قريب"
-          className="input-text-field"
-          disabled={isSubmitting}
-        />
-        {errors.address && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.address}</span>
-          </div>
-        )}
+      {/* شريط حالة الخطوة للهواتف المحمولة */}
+      <div className="wizard-mobile-status">
+        <span className="wizard-mobile-status-text">
+          {step === 1 && 'اختر الامتحانات المطلوبة 📚'}
+          {step === 2 && 'بيانات التوصيل 📍'}
+          {step === 3 && 'بيانات التواصل وتأكيد الطلب 📞'}
+        </span>
+        <span className="wizard-mobile-status-step">الخطوة {step} من 3</span>
       </div>
 
-      {/* 5. رقم موبايل للتواصل */}
-      <div 
-        ref={cardRefs.mobilePhone} 
-        className={`form-card ${errors.mobilePhone ? 'error-state' : ''}`}
-      >
-        <label htmlFor="mobilePhone" className="question-title required">رقم موبايل للتواصل</label>
-        <p className="question-description">يفضل أن يكون فعال ونشط</p>
-        <input
-          id="mobilePhone"
-          type="tel"
-          name="mobilePhone"
-          value={formData.mobilePhone}
-          onChange={handleInputChange}
-          placeholder="مثال: 0791234567"
-          maxLength={10}
-          className="input-text-field"
-          style={{ direction: 'ltr', textAlign: 'right' }}
-          disabled={isSubmitting}
-        />
-        {errors.mobilePhone && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.mobilePhone}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 6. رقم واتساب للتواصل */}
-      <div 
-        ref={cardRefs.whatsappPhone} 
-        className={`form-card ${errors.whatsappPhone ? 'error-state' : ''}`}
-      >
-        <label htmlFor="whatsappPhone" className="question-title required">رقم واتساب للتواصل</label>
-        <p className="question-description">يفضل أن يكون فعال ومتصل بالإنترنت</p>
-        <input
-          id="whatsappPhone"
-          type="tel"
-          name="whatsappPhone"
-          value={formData.whatsappPhone}
-          onChange={handleInputChange}
-          placeholder="مثال: 0791234567"
-          maxLength={10}
-          className="input-text-field"
-          style={{ direction: 'ltr', textAlign: 'right' }}
-          disabled={isSubmitting}
-        />
-        {errors.whatsappPhone && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.whatsappPhone}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 7. رقم هاتف آخر */}
-      <div 
-        ref={cardRefs.otherPhone} 
-        className={`form-card ${errors.otherPhone ? 'error-state' : ''}`}
-      >
-        <label htmlFor="otherPhone" className="question-title required">رقم هاتف آخر</label>
-        <input
-          id="otherPhone"
-          type="tel"
-          name="otherPhone"
-          value={formData.otherPhone}
-          onChange={handleInputChange}
-          placeholder="رقم هاتف الأب أو الأم أو رقم بديل"
-          className="input-text-field"
-          style={{ direction: 'ltr', textAlign: 'right' }}
-          disabled={isSubmitting}
-        />
-        {errors.otherPhone && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.otherPhone}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 8. المادة المطلوبة */}
-      <div 
-        ref={cardRefs.subjectsList} 
-        className={`form-card ${errors.subjectsList ? 'error-state' : ''}`}
-      >
-        <label className="question-title required">المادة المطلوبة</label>
-        <p className="question-description">يرجى اختيار مادة واحدة أو أكثر:</p>
+      <form onSubmit={handleSubmit} noValidate>
         
-        {!formData.generation ? (
-          <div style={{ padding: '16px 0', color: 'var(--google-purple)', fontWeight: 600, textAlign: 'center' }}>
-            ⚠️ يرجى اختيار الصف / الجيل أولاً لعرض المواد المتاحة.
+        {errors.api && (
+          <div className="global-error-alert" style={{ marginBottom: '12px' }}>
+            <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <span>{errors.api}</span>
           </div>
-        ) : loadingSubjects ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
-            <div className="google-spinner"></div>
-          </div>
-        ) : subjectsError ? (
-          <div className="card-error-msg" style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <AlertCircle size={16} />
-            <span>{subjectsError}</span>
-          </div>
-        ) : filteredSubjects.length === 0 ? (
-          <div style={{ padding: '16px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
-            لا توجد مواد متاحة حاليًا لهذا الجيل.
-          </div>
-        ) : (
-          <div className="options-container" style={{ gap: '8px' }}>
-            {filteredSubjects.map(subject => {
-              const isSelected = formData.subjects.includes(subject.name);
-              const isDisabled = subject.status === 'disabled';
-              const { title, details } = parseSubjectName(subject.name);
+        )}
 
-              return (
-                <div 
-                  key={subject.id}
-                  className={`option-row checkbox ${isSelected ? 'checked' : ''} ${(isSubmitting || isDisabled) ? 'disabled' : ''}`}
-                  onClick={() => !isSubmitting && !isDisabled && handleCheckboxSelect(subject.name)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 16px',
-                    border: isSelected ? '1px solid var(--google-purple)' : '1px solid var(--border-color)',
-                    backgroundColor: isSelected ? 'var(--google-purple-light)' : (isDisabled ? '#f5f5f5' : '#fff'),
-                    opacity: isDisabled ? 0.65 : 1,
-                    borderRadius: '6px',
-                    transition: 'all 0.2s',
-                    cursor: isDisabled ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexGrow: 1 }}>
-                    <input 
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => {}}
-                      className="option-input"
-                      disabled={isSubmitting || isDisabled}
-                    />
-                    <div className="option-label" style={{ paddingRight: '28px' }}>
-                      <div style={{ fontWeight: 600, color: isDisabled ? 'var(--text-muted)' : 'var(--text-color)' }}>
-                        {title}
-                        {isDisabled && <span style={{ marginRight: '8px', fontSize: '0.8rem', color: '#d93025', fontWeight: 700 }}>(انتهى التقديم)</span>}
-                      </div>
-                      {(subject.description || details) && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 400 }}>
-                          {subject.description || details}
+        {isEditMode && (
+          <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)', padding: '16px 24px', marginBottom: '12px' }}>
+            <span className="question-title" style={{ color: 'var(--google-purple)', margin: 0 }}>
+              أنت الآن تعدّل الطلب رقم: <strong>{orderNumber}</strong>
+            </span>
+          </div>
+        )}
+
+        {/* ========================================================
+            الخطوة 1: اختيار الامتحانات
+            ======================================================== */}
+        {step === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            
+            {/* اختيار الجيل */}
+            <div className={`form-card ${errors.generation ? 'error-state' : ''}`}>
+              <span className="question-title required">الصف / الجيل</span>
+              <div className="selection-cards-grid">
+                {[
+                  { id: 'توجيهي 2009', label: 'توجيهي 2009', desc: 'باقة لطلاب جيل 2009' },
+                  { id: 'بيتيك BTEC', label: 'بيتيك BTEC', desc: 'باقة لطلاب البيتك والمواد المهنية' },
+                  { id: 'توجيهي 2008', label: 'توجيهي 2008', desc: 'باقة لطلاب المعيدين جيل 2008' }
+                ].map(gen => (
+                  <div 
+                    key={gen.id} 
+                    className={`large-selection-card ${formData.generation === gen.id ? 'selected' : ''}`}
+                    onClick={() => handleRadioSelect('generation', gen.id)}
+                  >
+                    <span className="large-selection-card-title">{gen.label}</span>
+                    <span className="large-selection-card-desc">{gen.desc}</span>
+                  </div>
+                ))}
+              </div>
+              {errors.generation && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.generation}</span>
+                </div>
+              )}
+            </div>
+
+            {/* المواد المطلوبة */}
+            <div className={`form-card ${errors.subjectsList ? 'error-state' : ''}`}>
+              <span className="question-title required">المواد المطلوبة</span>
+              <p className="question-description">يرجى اختيار مادة واحدة أو أكثر:</p>
+              
+              {!formData.generation ? (
+                <div style={{ padding: '24px 0', color: 'var(--google-purple)', fontWeight: 600, textAlign: 'center' }}>
+                  ⚠️ يرجى اختيار الصف / الجيل أولاً لعرض المواد المتاحة.
+                </div>
+              ) : loadingSubjects ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+                  <div className="google-spinner" style={{ borderColor: 'var(--google-purple)', borderTopColor: 'transparent' }}></div>
+                </div>
+              ) : subjectsError ? (
+                <div className="card-error-msg" style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle size={16} />
+                  <span>{subjectsError}</span>
+                </div>
+              ) : filteredSubjects.length === 0 ? (
+                <div style={{ padding: '16px 0', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  لا توجد مواد متاحة حاليًا لهذا الجيل.
+                </div>
+              ) : (
+                <div className="options-container" style={{ gap: '8px' }}>
+                  {filteredSubjects.map(subject => {
+                    const isSelected = formData.subjects.includes(subject.name);
+                    const isDisabled = subject.status === 'disabled';
+                    const { title, details } = parseSubjectName(subject.name);
+
+                    return (
+                      <div 
+                        key={subject.id}
+                        className={`option-row checkbox ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}`}
+                        onClick={() => !isDisabled && handleCheckboxSelect(subject.name)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '14px 16px',
+                          border: isSelected ? '1px solid var(--google-purple)' : '1px solid var(--border-color)',
+                          backgroundColor: isSelected ? 'var(--google-purple-light)' : (isDisabled ? '#f5f5f5' : '#fff'),
+                          opacity: isDisabled ? 0.65 : 1,
+                          borderRadius: '6px',
+                          transition: 'all 0.2s',
+                          cursor: isDisabled ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="option-input"
+                          disabled={isDisabled}
+                        />
+                        <div className="option-label" style={{ paddingRight: '28px' }}>
+                          <div style={{ fontWeight: 600, color: isDisabled ? 'var(--text-muted)' : 'var(--text-color)' }}>
+                            {title}
+                            {isDisabled && <span style={{ marginRight: '8px', fontSize: '0.8rem', color: '#d93025', fontWeight: 700 }}>(انتهى التقديم)</span>}
+                          </div>
+                          {(subject.description || details) && (
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px', fontWeight: 400 }}>
+                              {subject.description || details}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ marginTop: '20px' }}>
+                <label htmlFor="otherSubject" className="question-title" style={{ fontSize: '0.9rem' }}>
+                  أو إذا اخترت مواد أخرى، اكتبها هنا
+                </label>
+                <input
+                  id="otherSubject"
+                  type="text"
+                  name="otherSubject"
+                  value={formData.otherSubject}
+                  onChange={handleInputChange}
+                  placeholder="اكتب أسماء المواد الإضافية هنا..."
+                  className="input-text-field other-subject-input"
+                />
+              </div>
+
+              {errors.subjectsList && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.subjectsList}</span>
+                </div>
+              )}
+            </div>
+
+            {/* نوع الطباعة */}
+            {formData.subjects.length > 0 && (
+              <div className={`form-card ${errors.printType ? 'error-state' : ''}`}>
+                <span className="question-title required">نوع الطباعة</span>
+                <div className="selection-cards-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                  {[
+                    { key: 'black_white', label: 'أبيض وأسود', desc: 'طباعة كلاسيكية واضحة' },
+                    { key: 'color', label: 'ملون 🌈', desc: 'ألوان كاملة ممتازة' }
+                  ].map(option => (
+                    <div 
+                      key={option.key} 
+                      className={`large-selection-card ${formData.printType === option.key ? 'selected' : ''}`}
+                      onClick={() => handleRadioSelect('printType', option.key)}
+                    >
+                      <span className="large-selection-card-title">{option.label}</span>
+                      <span className="large-selection-card-desc">{option.desc}</span>
                     </div>
+                  ))}
+                </div>
+                {errors.printType && (
+                  <div className="card-error-msg">
+                    <AlertCircle size={14} />
+                    <span>{errors.printType}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* عدد النماذج لكل مادة */}
+            {formData.subjects.length > 0 && formData.printType && (
+              <div className={`form-card ${errors.modelsCount ? 'error-state' : ''}`}>
+                <span className="question-title required">عدد النماذج لكل مادة</span>
+                <p className="question-description">الخيارات المتاحة للخيارات المختارة:</p>
+                
+                {availableCounts.length === 0 ? (
+                  <div style={{ color: '#d93025', fontWeight: 600, padding: '8px 0', fontSize: '0.92rem' }}>
+                    {formData.generation.includes('BTEC') && formData.subjects.length === 2 ? (
+                      '⚠️ لا يوجد عرض متاح لمادتين في بيتيك، يرجى اختيار مادة واحدة أو ثلاث مواد.'
+                    ) : (
+                      '⚠️ لا يوجد عرض متاح لهذا العدد من المواد، يرجى اختيار عدد مواد مختلف.'
+                    )}
+                  </div>
+                ) : (
+                  <div className="options-container">
+                    {availableCounts.map(count => (
+                      <div 
+                        key={count} 
+                        className={`option-row radio ${formData.modelsCount === String(count) ? 'checked' : ''}`}
+                        onClick={() => handleRadioSelect('modelsCount', String(count))}
+                      >
+                        <input 
+                          type="radio" 
+                          name="modelsCount" 
+                          value={String(count)} 
+                          checked={formData.modelsCount === String(count)} 
+                          onChange={() => {}}
+                          className="option-input"
+                        />
+                        <span className="option-label">{count} نماذج</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {errors.modelsCount && (
+                  <div className="card-error-msg">
+                    <AlertCircle size={14} />
+                    <span>{errors.modelsCount}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* عرض رسالة إذا كانت التوليفة غير متاحة */}
+            {formData.subjects.length > 0 && formData.printType && formData.modelsCount && !pricing.available && (
+              <div className="form-card" style={{ borderTop: '5px solid #d93025' }}>
+                <div style={{ color: '#d93025', fontWeight: 600, padding: '8px 0', fontSize: '0.92rem' }}>
+                  ⚠️ لا يوجد عرض متاح لهذا الاختيار، يرجى تعديل عدد المواد أو عدد النماذج.
+                </div>
+              </div>
+            )}
+
+            {/* ملخص السعر في خطوة 1 */}
+            {pricing.available && (
+              <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <Receipt size={18} style={{ color: 'var(--google-purple)' }} />
+                  <span className="question-title" style={{ margin: 0 }}>ملخص الفاتورة التقديري:</span>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>سعر المواد:</span>
+                    <span style={{ fontWeight: 700 }}>{pricing.materialsPrice.toFixed(2)} JD</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>سعر التوصيل:</span>
+                    <span style={{ fontWeight: 700 }}>{pricing.deliveryFee.toFixed(2)} JD</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #eee', paddingTop: '8px', fontSize: '1rem', fontWeight: 800 }}>
+                    <span>المجموع الإجمالي:</span>
+                    <span style={{ color: 'var(--google-purple)' }}>{pricing.total.toFixed(2)} JD</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div style={{ marginTop: '20px' }}>
-          <label htmlFor="otherSubject" className="question-title" style={{ fontSize: '0.9rem' }}>
-            أو إذا اخترت مواد أخرى، اكتبها هنا
-          </label>
-          <input
-            id="otherSubject"
-            type="text"
-            name="otherSubject"
-            value={formData.otherSubject}
-            onChange={handleInputChange}
-            placeholder="اكتب أسماء المواد الإضافية هنا..."
-            className="input-text-field other-subject-input"
-            disabled={isSubmitting}
-          />
-        </div>
-
-        {errors.subjectsList && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.subjectsList}</span>
-          </div>
-        )}
-      </div>
-
-      {/* خيارات الطباعة - تظهر بعد اختيار مادة واحدة على الأقل */}
-      {formData.subjects.length > 0 && (
-        <div className="form-card">
-          <span className="question-title required">نوع الطباعة</span>
-          <div className="options-container">
-            {[
-              { key: 'black_white', label: 'أبيض وأسود' },
-              { key: 'color', label: 'ملون' }
-            ].map(option => (
-              <div 
-                key={option.key} 
-                className={`option-row radio ${formData.printType === option.key ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-                onClick={() => !isSubmitting && handleRadioSelect('printType', option.key)}
-              >
-                <input 
-                  type="radio" 
-                  name="printType" 
-                  value={option.key} 
-                  checked={formData.printType === option.key} 
-                  onChange={() => {}}
-                  className="option-input"
-                  disabled={isSubmitting}
-                />
-                <span className="option-label">{option.label}</span>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
 
-      {/* اختيار عدد النماذج لكل مادة - تظهر بعد اختيار نوع الطباعة */}
-      {formData.subjects.length > 0 && formData.printType && (
-        <div className="form-card">
-          <span className="question-title required">عدد النماذج لكل مادة</span>
-          <p className="question-description">الخيارات المتاحة لعدد المواد المختار:</p>
-          
-          {availableCounts.length === 0 ? (
-            <div style={{ color: '#d93025', fontWeight: 600, padding: '8px 0', fontSize: '0.92rem' }}>
-              ⚠️ لا يوجد عرض متاح لهذا العدد من المواد، يرجى اختيار عدد مواد مختلف.
+            {/* زر الانتقال لـ 2 */}
+            <div className="footer-row" style={{ gap: '12px' }}>
+              <button 
+                type="button" 
+                onClick={isEditMode ? onBack : handleFormReset} 
+                className="clear-form-link"
+                style={{ flex: 1, border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+              >
+                <span>{isEditMode ? 'إلغاء التعديل' : 'إخلاء النموذج'}</span>
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={handleNextStep} 
+                className="btn-submit-google"
+                disabled={!pricing.available}
+                style={{ flex: 2, justifyContent: 'center', margin: 0 }}
+              >
+                <span>متابعة لبيانات التوصيل 🚚</span>
+                <ArrowRight size={18} />
+              </button>
             </div>
-          ) : (
-            <div className="options-container">
-              {availableCounts.map(count => (
+
+          </div>
+        )}
+
+        {/* ========================================================
+            الخطوة 2: بيانات التوصيل
+            ======================================================== */}
+        {step === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            
+            {/* المحافظة */}
+            <div className={`form-card ${errors.governorate ? 'error-state' : ''}`}>
+              <label htmlFor="gov" className="question-title required">المحافظة</label>
+              <div style={{ marginTop: '12px' }}>
+                <select
+                  id="gov"
+                  name="governorate"
+                  value={formData.governorate}
+                  onChange={handleInputChange}
+                  className="input-select-field"
+                  style={{ maxWidth: '100%' }}
+                >
+                  <option value="">اختيار المحافظة</option>
+                  {GOVERNORATES.map(gov => (
+                    <option key={gov} value={gov}>{gov}</option>
+                  ))}
+                </select>
+              </div>
+              {errors.governorate && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.governorate}</span>
+                </div>
+              )}
+            </div>
+
+            {/* العنوان التفصيلي */}
+            <div className={`form-card ${errors.address ? 'error-state' : ''}`}>
+              <label htmlFor="addr" className="question-title required">المنطقة / العنوان التفصيلي</label>
+              <p className="question-description">يرجى كتابة اسم المنطقة والشارع أو المعلم المقابل لضمان سرعة الوصول</p>
+              <input
+                id="addr"
+                type="text"
+                name="address"
+                value={formData.address}
+                onChange={handleInputChange}
+                placeholder="مثال: ضاحية الياسمين، شارع المطار، بجانب سوبرماركت..."
+                className="input-text-field"
+              />
+              {errors.address && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.address}</span>
+                </div>
+              )}
+            </div>
+
+            {/* بطاقة تأكيد سعر التوصيل */}
+            <div className={`form-card ${errors.deliveryConfirm ? 'error-state' : ''}`} style={{ borderLeft: '5px solid var(--google-purple)' }}>
+              <span className="question-title required">تأكيد سعر التوصيل (1 JD)</span>
+              <p className="question-description">توصيل الباقة إلى باب بيتك بقيمة دينار واحد فقط لكافة المحافظات.</p>
+              <div className="options-container">
                 <div 
-                  key={count} 
-                  className={`option-row radio ${formData.modelsCount === String(count) ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-                  onClick={() => !isSubmitting && handleRadioSelect('modelsCount', String(count))}
+                  className={`option-row radio ${formData.deliveryConfirm === 'تم ✅' ? 'checked' : ''}`}
+                  onClick={() => handleRadioSelect('deliveryConfirm', 'تم ✅')}
                 >
                   <input 
                     type="radio" 
-                    name="modelsCount" 
-                    value={String(count)} 
-                    checked={formData.modelsCount === String(count)} 
+                    name="deliveryConfirm" 
+                    value="تم ✅" 
+                    checked={formData.deliveryConfirm === 'تم ✅'} 
                     onChange={() => {}}
                     className="option-input"
-                    disabled={isSubmitting}
                   />
-                  <span className="option-label">{count} نماذج</span>
+                  <span className="option-label">تأكيد التوصيل (تم ✅)</span>
                 </div>
-              ))}
+              </div>
+              {errors.deliveryConfirm && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.deliveryConfirm}</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
 
-      {/* 10. سعر التوصيل دينار واحد فقط 1JD */}
-      <div 
-        ref={cardRefs.deliveryConfirm} 
-        className={`form-card ${errors.deliveryConfirm ? 'error-state' : ''}`}
-      >
-        <span className="question-title required">سعر التوصيل دينار واحد فقط 1JD</span>
-        <div className="options-container">
-          <div 
-            className={`option-row radio ${formData.deliveryConfirm === 'تم ✅' ? 'checked' : ''} ${isSubmitting ? 'disabled' : ''}`}
-            onClick={() => !isSubmitting && handleRadioSelect('deliveryConfirm', 'تم ✅')}
-          >
-            <input 
-              type="radio" 
-              name="deliveryConfirm" 
-              value="تم ✅" 
-              checked={formData.deliveryConfirm === 'تم ✅'} 
-              onChange={() => {}}
-              className="option-input"
-              disabled={isSubmitting}
-            />
-            <span className="option-label">تم ✅</span>
-          </div>
-        </div>
-        {errors.deliveryConfirm && (
-          <div className="card-error-msg">
-            <AlertCircle size={14} />
-            <span>{errors.deliveryConfirm}</span>
+            {/* أزرار خطوة 2 */}
+            <div className="footer-row" style={{ gap: '12px' }}>
+              <button 
+                type="button" 
+                onClick={handlePrevStep} 
+                className="clear-form-link"
+                style={{ flex: 1, border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}
+              >
+                <ArrowLeft size={16} />
+                <span>تعديل الامتحانات</span>
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={handleNextStep} 
+                className="btn-submit-google"
+                style={{ flex: 2, justifyContent: 'center', margin: 0 }}
+                disabled={!formData.governorate || !safeText(formData.address) || !formData.deliveryConfirm}
+              >
+                <span>متابعة لبيانات التواصل 📞</span>
+                <ArrowRight size={18} />
+              </button>
+            </div>
+
           </div>
         )}
-      </div>
 
-      {/* 11. ملاحظات أخرى */}
-      <div className="form-card">
-        <label htmlFor="notes" className="question-title">ملاحظات أخرى</label>
-        <textarea
-          id="notes"
-          name="notes"
-          value={formData.notes}
-          onChange={handleInputChange}
-          placeholder="إجابتك"
-          className="input-textarea-field"
-          disabled={isSubmitting}
-        />
-      </div>
-
-      {/* تنبيه عند عدم وجود عرض متاح للخيارات المحددة */}
-      {formData.subjects.length > 0 && formData.printType && formData.modelsCount && !pricing.available && (
-        <div className="form-card" style={{ borderTop: '5px solid #d93025' }}>
-          <div style={{ color: '#d93025', fontWeight: 600, padding: '8px 0', fontSize: '0.92rem' }}>
-            ⚠️ لا يوجد عرض متاح لهذا الاختيار، يرجى تعديل عدد المواد أو عدد النماذج.
-          </div>
-        </div>
-      )}
-
-      {/* بطاقة ملخص السعر التلقائي للفاتورة */}
-      {pricing.available && (
-        <div className="form-card" style={{ borderTop: '5px solid var(--google-purple)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <Receipt size={20} style={{ color: 'var(--google-purple)' }} />
-            <span className="question-title" style={{ margin: 0 }}>ملخص الطلب:</span>
-          </div>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.95rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>الجيل:</span>
-              <span style={{ fontWeight: 700 }}>{formData.generation}</span>
+        {/* ========================================================
+            الخطوة 3: بيانات التواصل وتأكيد الطلب
+            ======================================================== */}
+        {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            
+            {/* الاسم الكامل */}
+            <div className={`form-card ${errors.fullName ? 'error-state' : ''}`}>
+              <label htmlFor="fullname" className="question-title required">الاسم الكامل للطالب</label>
+              <input
+                id="fullname"
+                type="text"
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleInputChange}
+                placeholder="الاسم الثلاثي أو الرباعي"
+                className="input-text-field"
+                disabled={isSubmitting}
+              />
+              {errors.fullName && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.fullName}</span>
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>عدد المواد:</span>
-              <span style={{ fontWeight: 700 }}>{formData.subjects.length} مواد</span>
+
+            {/* رقم الموبايل للتواصل */}
+            <div className={`form-card ${errors.mobilePhone ? 'error-state' : ''}`}>
+              <label htmlFor="mob-phone" className="question-title required">رقم موبايل للتواصل</label>
+              <p className="question-description">سيتصل بك مندوب التوصيل على هذا الرقم</p>
+              <input
+                id="mob-phone"
+                type="tel"
+                name="mobilePhone"
+                value={formData.mobilePhone}
+                onChange={handleInputChange}
+                placeholder="مثال: 0791234567"
+                maxLength={10}
+                className="input-text-field"
+                style={{ direction: 'ltr', textAlign: 'right' }}
+                disabled={isSubmitting}
+              />
+              {errors.mobilePhone && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.mobilePhone}</span>
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px dashed #eee', paddingBottom: '6px', gap: '4px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>المواد المختارة:</span>
-              <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-color)' }}>
-                {formData.subjects.join(', ')}
+
+            {/* رقم الواتساب وتحديد التطابق */}
+            <div className={`form-card ${errors.whatsappPhone ? 'error-state' : ''}`}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label htmlFor="wa-phone" className="question-title required" style={{ margin: 0 }}>رقم واتساب للتواصل</label>
+                
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--google-purple)', fontWeight: 700, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={sameWhatsapp}
+                    onChange={(e) => setSameWhatsapp(e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>نفس رقم الموبايل</span>
+                </label>
+              </div>
+
+              {!sameWhatsapp ? (
+                <input
+                  id="wa-phone"
+                  type="tel"
+                  name="whatsappPhone"
+                  value={formData.whatsappPhone}
+                  onChange={handleInputChange}
+                  placeholder="مثال: 0791234567"
+                  maxLength={10}
+                  className="input-text-field"
+                  style={{ direction: 'ltr', textAlign: 'right' }}
+                  disabled={isSubmitting}
+                />
+              ) : (
+                <div style={{ padding: '10px 12px', backgroundColor: '#f9f9f9', borderRadius: '4px', fontSize: '0.9rem', color: 'var(--text-muted)', direction: 'ltr', textAlign: 'right' }}>
+                  {formData.mobilePhone || 'لم يتم إدخال رقم الموبايل بعد'}
+                </div>
+              )}
+
+              {errors.whatsappPhone && !sameWhatsapp && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.whatsappPhone}</span>
+                </div>
+              )}
+            </div>
+
+            {/* رقم هاتف بديل للطوارئ */}
+            <div className={`form-card ${errors.otherPhone ? 'error-state' : ''}`}>
+              <label htmlFor="alt-phone" className="question-title required">رقم هاتف بديل (عند عدم الرد)</label>
+              <p className="question-description">رقم هاتف الأب أو الأم أو رقم آخر احتياطي</p>
+              <input
+                id="alt-phone"
+                type="tel"
+                name="otherPhone"
+                value={formData.otherPhone}
+                onChange={handleInputChange}
+                placeholder="رقم هاتف بديل للتواصل الفوري"
+                className="input-text-field"
+                style={{ direction: 'ltr', textAlign: 'right' }}
+                disabled={isSubmitting}
+              />
+              {errors.otherPhone && (
+                <div className="card-error-msg">
+                  <AlertCircle size={14} />
+                  <span>{errors.otherPhone}</span>
+                </div>
+              )}
+            </div>
+
+            {/* ملاحظات أخرى */}
+            <div className="form-card">
+              <label htmlFor="usr-notes" className="question-title">ملاحظات أخرى</label>
+              <textarea
+                id="usr-notes"
+                name="notes"
+                value={formData.notes}
+                onChange={handleInputChange}
+                placeholder="أي ملاحظات إضافية تخص التوصيل أو المواد..."
+                className="input-textarea-field"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            {/* مراجعة الطلب قبل الإرسال (Order Review Card) */}
+            <div className="form-card" style={{ border: '2px solid var(--google-purple)', backgroundColor: '#faf9fc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <Receipt size={20} style={{ color: 'var(--google-purple)' }} />
+                <span className="question-title" style={{ margin: 0, fontWeight: 800 }}>راجع طلبك قبل الإرسال 📋</span>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.9rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>الاسم:</span>
+                  <span style={{ fontWeight: 700 }}>{formData.fullName || '—'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>الجيل / الصف:</span>
+                  <span style={{ fontWeight: 700 }}>{formData.generation}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', borderBottom: '1px solid #eee', paddingBottom: '6px', gap: '2px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>المواد المطلوبة:</span>
+                  <span style={{ fontWeight: 700, color: 'var(--text-color)' }}>{formData.subjects.join(', ') || '—'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>نوع الطباعة:</span>
+                  <span style={{ fontWeight: 700 }}>{formData.printType === 'black_white' ? 'أبيض وأسود' : 'ملون'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>عدد النماذج:</span>
+                  <span style={{ fontWeight: 700 }}>{formData.modelsCount} نماذج</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>العنوان:</span>
+                  <span style={{ fontWeight: 700 }}>{formData.governorate} — {formData.address || '—'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #ccc', paddingBottom: '6px', marginTop: '4px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>سعر المواد:</span>
+                  <span style={{ fontWeight: 700 }}>{pricing.materialsPrice.toFixed(2)} JD</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #ccc', paddingBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>التوصيل:</span>
+                  <span style={{ fontWeight: 700 }}>{pricing.deliveryFee.toFixed(2)} JD</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.05rem', fontWeight: 800, marginTop: '4px' }}>
+                  <span>الإجمالي النهائي:</span>
+                  <span style={{ color: 'var(--google-purple)', fontSize: '1.2rem' }}>{pricing.total.toFixed(2)} JD</span>
+                </div>
+              </div>
+            </div>
+
+            {/* تنبيه نهائي */}
+            <div className="warning-box">
+              <span className="warning-title">⚠️ تأكيد أخير</span>
+              <span className="warning-item">
+                <span>⭕</span>
+                <span>تأكد من صحة أرقام الهواتف المدخلة ليتواصل معك المندوب بشكل سليم.</span>
               </span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>عدد النماذج لكل مادة:</span>
-              <span style={{ fontWeight: 700 }}>{formData.modelsCount} نماذج</span>
+
+            {/* أزرار خطوة 3 */}
+            <div className="footer-row" style={{ gap: '12px' }}>
+              <button 
+                type="button" 
+                onClick={handlePrevStep} 
+                className="clear-form-link"
+                style={{ flex: 1, border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}
+                disabled={isSubmitting}
+              >
+                <ArrowLeft size={16} />
+                <span>تعديل العنوان</span>
+              </button>
+              
+              <button 
+                type="submit" 
+                className="btn-submit-google"
+                style={{ flex: 2, justifyContent: 'center', margin: 0 }}
+                disabled={isSubmitting || !formData.fullName || !formData.mobilePhone || (!sameWhatsapp && !formData.whatsappPhone) || !formData.otherPhone}
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="google-spinner"></div>
+                    <span>جاري إرسال الطلب...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>تأكيد وإرسال الطلب VIP 🥇</span>
+                  </>
+                )}
+              </button>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #eee', paddingBottom: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>نوع الطباعة:</span>
-              <span style={{ fontWeight: 700 }}>{formData.printType === 'black_white' ? 'أبيض وأسود' : 'ملون'}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>سعر المواد:</span>
-              <span style={{ fontWeight: 700, color: 'var(--google-purple)' }}>{pricing.materialsPrice.toFixed(2)} JD</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #ddd', paddingBottom: '8px' }}>
-              <span style={{ color: 'var(--text-muted)' }}>التوصيل:</span>
-              <span style={{ fontWeight: 700 }}>{pricing.deliveryFee.toFixed(2)} JD</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800, marginTop: '4px' }}>
-              <span style={{ color: 'var(--text-color)' }}>الإجمالي المطلوب:</span>
-              <span style={{ color: 'var(--google-purple)' }}>{pricing.total.toFixed(2)} JD</span>
-            </div>
+
           </div>
+        )}
+
+      </form>
+
+      {/* شريط الإجمالي الثابت بالأسفل للهواتف المحمولة */}
+      {pricing.available && !isSubmitting && (
+        <div className="sticky-bottom-bar">
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span className="sticky-bar-price-label">المبلغ الإجمالي المطلوب</span>
+            <span className="sticky-bar-price-value">{pricing.total.toFixed(2)} JD</span>
+          </div>
+
+          {step === 1 && (
+            <button 
+              type="button" 
+              onClick={handleNextStep} 
+              className="sticky-bar-btn"
+              disabled={!pricing.available}
+            >
+              متابعة
+            </button>
+          )}
+
+          {step === 2 && (
+            <button 
+              type="button" 
+              onClick={handleNextStep} 
+              className="sticky-bar-btn"
+              disabled={!formData.governorate || !safeText(formData.address) || !formData.deliveryConfirm}
+            >
+              متابعة
+            </button>
+          )}
+
+          {step === 3 && (
+            <button 
+              type="button" 
+              onClick={handleSubmit} 
+              className="sticky-bar-btn"
+              style={{ backgroundColor: 'var(--success-color)' }}
+              disabled={isSubmitting || !formData.fullName || !formData.mobilePhone || (!sameWhatsapp && !formData.whatsappPhone) || !formData.otherPhone}
+            >
+              تأكيد وإرسال
+            </button>
+          )}
         </div>
       )}
 
-      {/* تنبيه قبل الإرسال */}
-      <div className="warning-box">
-        <span className="warning-title">⚠️ ملاحظة</span>
-        <span className="warning-item">
-          <span>⭕</span>
-          <span>سيتم إرسال وتوصيل كل مادة على حدة قبل موعد الامتحان.</span>
-        </span>
-        <span className="warning-item">
-          <span>⭕</span>
-          <span>تأكد من صحة المعلومات قبل إرسال الطلب.</span>
-        </span>
-      </div>
-
-      {/* أزرار التحكم والتقديم */}
-      <div className="footer-row">
-        <button 
-          type="submit" 
-          className="btn-submit-google"
-          disabled={isSubmitting || loadingSubjects || (formData.subjects.length > 0 && !pricing.available)}
-        >
-          {isSubmitting ? (
-            <>
-              <div className="google-spinner"></div>
-              <span>{isEditMode ? 'جاري حفظ التعديلات...' : 'جاري تسجيل الطلب...'}</span>
-            </>
-          ) : (
-            <span>{isEditMode ? 'حفظ التعديلات ✅' : 'تثبيت الطلب'}</span>
-          )}
-        </button>
-        
-        <button 
-          type="button" 
-          onClick={isEditMode ? onBack : handleFormReset} 
-          className="clear-form-link"
-          disabled={isSubmitting}
-        >
-          {isEditMode ? (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <ArrowLeft size={16} /> إلغاء التعديل
-            </span>
-          ) : 'إخلاء النموذج'}
-        </button>
-      </div>
-
-    </form>
+    </div>
   );
 };

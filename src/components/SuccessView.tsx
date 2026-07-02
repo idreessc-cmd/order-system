@@ -43,21 +43,17 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
       {/* Google Purple Header Strip */}
       <div className="success-header-bar"></div>
 
-      <h1 className="success-title-text">
-        {isEditMode ? 'تعديل طلب سابق - امتحانات النجاح VIP' : 'طلب نماذج امتحانات النجاح المتوقعة VIP'}
+      <h1 className="success-title-text" style={{ fontSize: '1.5rem', textAlign: 'center', color: 'var(--google-purple)' }}>
+        {isEditMode ? 'تم تعديل طلبكم بنجاح ✅' : 'تم تسجيل طلبكم بنجاح ✅'}
       </h1>
 
       <div className="section-divider"></div>
 
-      <p className="success-body-text" style={{ color: 'var(--text-color)', fontWeight: 600, fontSize: '1.1rem' }}>
-        {isEditMode ? 'تم تعديل طلبكم بنجاح ✅' : 'تم تسجيل طلبكم بنجاح ✅'}
-      </p>
-
-      {/* Order ID Box */}
-      <div className="success-order-box">
-        <span className="success-order-label">رقم الطلب الخاص بك</span>
+      {/* Order ID & Price Box */}
+      <div className="success-order-box" style={{ margin: '20px 0', border: '1px solid var(--border-color)', backgroundColor: '#fcfbfe' }}>
+        <span className="success-order-label">رقم الطلب</span>
         <div className="success-order-id-row" style={{ marginBottom: '8px' }}>
-          <span className="success-order-id-value">{orderId}</span>
+          <span className="success-order-id-value" style={{ fontSize: '1.8rem', fontWeight: 800 }}>{orderId}</span>
           <button 
             type="button" 
             onClick={handleCopy} 
@@ -75,19 +71,18 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '6px', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-color)' }}>
+        <div style={{ display: 'flex', gap: '6px', fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-color)' }}>
           <span>الإجمالي المطلوب:</span>
           <span style={{ color: 'var(--google-purple)' }}>{total.toFixed(2)} JD</span>
         </div>
       </div>
 
-      <p className="success-body-text" style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginBottom: '24px', lineHeight: '1.6' }}>
+      <p className="success-body-text" style={{ color: 'var(--text-color)', fontSize: '0.95rem', textAlign: 'center', marginBottom: '24px', lineHeight: '1.6', fontWeight: 600 }}>
         {isEditMode ? (
-          'تم حفظ التعديلات وسيتم اعتماد آخر بيانات قمت بإرسالها. يرجى الاحتفاظ برقم الطلب هذا.'
+          'تم حفظ التعديلات وسيتم اعتماد آخر بيانات قمت بإرسالها.'
         ) : (
-          'يرجى الاحتفاظ برقم الطلب، وسيتم استخدامه عند التواصل معكم.'
+          'يرجى الاحتفاظ برقم الطلب، وسيتم التواصل معكم لتأكيد التوصيل.'
         )}
-        {' '}لتأكيد طلبك وتفعيله لدى الدعم الفني مباشرة، يرجى الضغط على زر الواتساب بالأسفل لإرسال الرقم فوراً.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -96,9 +91,10 @@ export const SuccessView: React.FC<SuccessViewProps> = ({
           type="button" 
           onClick={handleWhatsAppRedirect} 
           className="btn-whatsapp-google"
+          style={{ height: '48px', fontSize: '0.95rem' }}
         >
           <MessageSquare size={20} />
-          <span>إرسال رقم الطلب عبر واتساب</span>
+          <span>إرسال رقم الطلب على واتساب</span>
         </button>
 
         {/* Home Button */}
